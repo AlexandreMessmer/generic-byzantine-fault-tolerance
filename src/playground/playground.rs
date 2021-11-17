@@ -14,12 +14,12 @@ use talk::time::test::join;
 #[tokio::test]
 async fn communicate(){
     const PEERS: usize = 8;
-    let UnicastSystem { 
-        keys, 
-        senders, 
-        receivers 
+    let UnicastSystem {
+        keys,
+        senders,
+        receivers
     } = UnicastSystem::<Msg>::setup(PEERS).await.into();
-    
+
     let peers = Peer::compose(keys.clone(), senders.clone(), receivers);
     let handles = peers.into_iter()
         .map(|Peer {key: _ , mut sender, mut receiver}| {
@@ -35,7 +35,7 @@ async fn communicate(){
                     //sender.send(message_sender, (String::from("Got it!"), true,  i)).await.unwrap();
                 }
             })
-            
+
         })
         .collect::<Vec<_>>();
         let targets = keys.clone();
@@ -58,7 +58,7 @@ async fn communicate(){
             .collect::<FuturesUnordered<_>>()
             .collect::<Vec<_>>()
             .await;
-        
+
 
     join(handles).await.unwrap()
 
@@ -89,7 +89,7 @@ async fn constant_all_to_all_strong() {
                     let (_, message, acknowledger) =
                         receiver.receive().await;
                     let _ = receiver.receive().await;
-                    
+
                     println!("Receiver {} receives from sender {:?}", i, message);
                     acknowledger.strong();
                 }
@@ -126,7 +126,7 @@ async fn hashMapConcurrent(){
     for i in 0..26{
         map.insert(char::from_u32(i + 'a' as u32).unwrap(), char::from_u32((i + shift) % 26 + 'a' as u32).unwrap());
     };
-    
+
     for (key, value) in map.iter(){
         println!("({}, {})", key, value);
     }
