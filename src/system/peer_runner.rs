@@ -1,9 +1,13 @@
+use std::time::Duration;
+
+use rand::thread_rng;
 use talk::crypto::Identity;
 use tokio::sync::mpsc::Receiver as MPSCReceiver;
 
 use crate::system::Command;
 use crate::system::peer::Peer;
 use crate::system::Message::Plaintext;
+use rand::Rng;
 
 use super::Message;
 
@@ -26,31 +30,36 @@ impl PeerRunner {
         loop {
             tokio::select! {
                 (id, message, _) = self.peer.receiver.receive() => {
-                    println!("Reached");
                     self.handle_message(id, message).await;
                 }
 
                 Some(command) = self.runner_outlet.recv() => {
-                    println!("Reached");
                     self.handle_command(command).await;
                 }
             }
         }
     }
 
-    async fn handle_command(&mut self, command: Command) {
+    async fn handle_command(&mut self, command: Command){
         match command {
             Command::Send(id, message) => {
-                let id = self.keys_table.get(id).unwrap().clone();
-                self.peer.sender.send(id, message).await.unwrap();
-                println!("Sent");
+                println!("Peer #{} forwarded: {:?}", self.peer.id, message);
+                self.simulate_busy().await;
+                if id < self.keys_table.len() {
+                    let id = self.keys_table.get(id).unwrap().clone();
+                    let _ = self.peer.sender.send(id, message.clone()).await;
+                }
             }
         }
     }
 
+    async fn simulate_busy(&self){
+        tokio::time::sleep(Duration::from_secs(2)).await;
+    }
+
     async fn handle_message(&mut self, _id: Identity, message: Message) {
         match message {
-            Plaintext(str) => println!("{}", str)
+            Plaintext(str) => println!("Peer #{} got: {}", self.peer.id, str)
         }
     }
 }
