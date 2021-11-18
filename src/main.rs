@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use genericbft::system::{peer_system::PeerSystem, Command, Message};
+use genericbft::system::{peer_system::PeerSystem, command::Command, message::Message};
 use tokio::sync::mpsc::Sender as MPSCSender;
 #[tokio::main]
 async fn main() {

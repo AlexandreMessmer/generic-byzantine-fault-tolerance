@@ -1,19 +1,16 @@
 use std::time::Duration;
 
-use rand::thread_rng;
 use talk::crypto::Identity;
 use talk::unicast::{Acknowledgement, PushSettings};
 
 use talk::sync::fuse::Fuse;
-
+use talk::unicast::Message as TalkMessage;
 use tokio::sync::mpsc::Receiver as MPSCReceiver;
 
+use crate::system::message;
 use crate::system::peer::Peer;
-use crate::system::Command;
-use crate::system::Message::Plaintext;
-use rand::Rng;
-
-use super::Message;
+use crate::system::command::Command;
+use crate::system::message::Message::{self, Plaintext};
 
 pub struct PeerRunner {
     peer: Peer,
@@ -59,24 +56,21 @@ impl PeerRunner {
                 println!("Peer #{} forwarded: {:?}", self.peer.id, message);
                 self.simulate_busy().await;
                 if id < self.keys_table.len() {
-                    println!("HERE X");
                     let id = self.keys_table.get(id).unwrap().clone();
-                    let _ = self
-                        .peer
-                        .sender
-                        .spawn_push(
-                            id,
-                            message.clone(),
-                            PushSettings {
-                                stop_condition: Acknowledgement::Weak,
-                                ..Default::default()
-                            },
-                            &self.fuse,
-                        );
+                    let _ = self.peer.sender.spawn_push(
+                        id,
+                        message.clone(),
+                        PushSettings {
+                            stop_condition: Acknowledgement::Weak,
+                            ..Default::default()
+                        },
+                        &self.fuse,
+                    );
 
-                    println!("HERE Y");
                 }
             }
+
+            _ => {}
         }
     }
 

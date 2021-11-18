@@ -1,8 +1,9 @@
-use crate::system::Message;
 use talk::{
     crypto::Identity,
     unicast::{Receiver, Sender},
 };
+
+use super::message::Message;
 
 /// Structure that defines a `Peer`, i.e. an entity that can send and receive `Message`
 /// Its behavior is defined by a `PeerRunner`

@@ -1,5 +1,5 @@
 use crate::system::peer::{Peer, PeerId};
-use crate::system::Command;
+use crate::system::command::Command;
 use talk::sync::fuse::Fuse;
 use talk::unicast::test::UnicastSystem;
 use tokio::sync::mpsc;
@@ -107,7 +107,7 @@ mod tests {
 
     use std::time::Duration;
 
-    use crate::system::{self, peer_system::PeerSystem, Message};
+    use crate::system::{self, peer_system::PeerSystem, message::Message};
 
     use super::*;
 
@@ -170,10 +170,7 @@ mod tests {
                 0,
             )
             .await;
-        loop {
-            println!("Sleeping...");
-            tokio::time::sleep(Duration::from_secs(4)).await;
-        }
+        tokio::time::sleep(Duration::from_secs(4)).await;
         // Question: Why can't a peer send a message to itself ? (talk dependent)
     }
 }
