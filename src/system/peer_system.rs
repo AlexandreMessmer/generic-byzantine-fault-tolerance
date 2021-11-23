@@ -92,7 +92,7 @@ impl PeerSystem {
             });
         }
     }
-    pub fn get_inlet(&self, target: PeerId) -> Option<MPSCSender<Command>> {
+    fn get_inlet(&self, target: PeerId) -> Option<MPSCSender<Command>> {
         if target < self.size {
             if let Some(inlet) = self.runner_inlets.get(target) {
                 return Some(inlet.clone());
@@ -107,7 +107,7 @@ mod tests {
 
     use std::time::Duration;
 
-    use crate::system::{self, peer_system::PeerSystem, message::Message};
+    use crate::system::{peer_system::PeerSystem, message::Message};
 
     use super::*;
 
@@ -143,7 +143,7 @@ mod tests {
         println!("Expected result: \n   Got: Hello \n   Got: Good bye !");
     }
 
-    //#[tokio::test]
+    #[tokio::test]
     async fn double_messages_2() {
         let system: PeerSystem = PeerSystem::setup(3).await.into();
         let t1 = system.send_command(

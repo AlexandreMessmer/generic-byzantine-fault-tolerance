@@ -4,4 +4,4 @@ pub mod peer_system;
 pub mod settings;
 pub mod command;
 pub mod message;
-
+pub mod client;
