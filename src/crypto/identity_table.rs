@@ -1,20 +1,21 @@
 use talk::crypto::Identity;
 
-pub struct IdentityTable{
-    clients: Vec<Identity>,
-    replicas: Vec<Identity>,
+pub struct IdentityTable {
+    pub clients: Vec<Identity>,
+    pub replicas: Vec<Identity>,
 }
 
 impl IdentityTable {
-    pub fn new(clients: Vec<Identity>, replicas: Vec<Identity>) -> Self{
-        IdentityTable {
-            clients,
-            replicas
-        }
+    pub fn new(clients: Vec<Identity>, replicas: Vec<Identity>) -> Self {
+        IdentityTable { clients, replicas }
+    }
+
+    pub fn initiate() -> IdentityTableBuilder {
+        IdentityTableBuilder::new()
     }
 }
 
-struct IdentityTableBuilder{
+pub struct IdentityTableBuilder {
     clients: Vec<Identity>,
     replicas: Vec<Identity>,
 }
@@ -27,17 +28,17 @@ impl IdentityTableBuilder {
         }
     }
 
-    fn add_client(&mut self, client: &Identity) -> &Self {
+    pub fn add_client(&mut self, client: &Identity) -> &Self {
         self.clients.push(client.clone());
         self
     }
 
-    fn add_replica(&mut self, replica: &Identity) -> &Self {
+    pub fn add_replica(&mut self, replica: &Identity) -> &Self {
         self.replicas.push(replica.clone());
         self
     }
 
-    fn build(self) -> IdentityTable {
+    pub fn build(self) -> IdentityTable {
         IdentityTable {
             clients: self.clients,
             replicas: self.replicas,
@@ -47,6 +48,9 @@ impl IdentityTableBuilder {
 
 impl Clone for IdentityTable {
     fn clone(&self) -> Self {
-        Self { clients: self.clients.clone(), replicas: self.replicas.clone() }
+        Self {
+            clients: self.clients.clone(),
+            replicas: self.replicas.clone(),
+        }
     }
 }

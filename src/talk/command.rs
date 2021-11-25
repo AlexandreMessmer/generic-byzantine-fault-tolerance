@@ -6,4 +6,5 @@ use super::message::Message;
 pub enum Command {
     Send(usize, Message),
     SendAndWait(usize, Message, oneshot::Sender<Message>),
+    Execute(Message),
 }

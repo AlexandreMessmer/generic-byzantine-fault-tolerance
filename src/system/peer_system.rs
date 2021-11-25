@@ -1,5 +1,5 @@
 use crate::system::peer::{Peer, PeerId};
-use crate::system::command::Command;
+use crate::talk::command::Command;
 use talk::sync::fuse::Fuse;
 use talk::unicast::test::UnicastSystem;
 use tokio::sync::mpsc;
@@ -107,7 +107,7 @@ mod tests {
 
     use std::time::Duration;
 
-    use crate::system::{peer_system::PeerSystem, message::Message};
+    use crate::{system::peer_system::PeerSystem, talk::message::Message};
 
     use super::*;
 

@@ -1,22 +1,18 @@
 use std::time::Duration;
 
 use talk::crypto::Identity;
-use talk::unicast::{Acknowledgement, PushSettings};
 
 use talk::sync::fuse::Fuse;
-use talk::unicast::Message as TalkMessage;
 use tokio::sync::mpsc::Receiver as MPSCReceiver;
 
-use crate::system::message;
 use crate::system::peer::Peer;
-use crate::system::command::Command;
-use crate::system::message::Message::{self, Plaintext};
+use crate::talk::command::Command;
+use crate::talk::message::Message::{self, Plaintext};
 
 pub struct PeerRunner {
     peer: Peer,
     runner_outlet: MPSCReceiver<Command>,
     keys_table: Vec<Identity>,
-
     fuse: Fuse,
 }
 
@@ -57,16 +53,7 @@ impl PeerRunner {
                 self.simulate_busy().await;
                 if id < self.keys_table.len() {
                     let id = self.keys_table.get(id).unwrap().clone();
-                    let _ = self.peer.sender.spawn_push(
-                        id,
-                        message.clone(),
-                        PushSettings {
-                            stop_condition: Acknowledgement::Weak,
-                            ..Default::default()
-                        },
-                        &self.fuse,
-                    );
-
+                    let _ = self.peer.sender.spawn_send(id, message.clone(), &self.fuse);
                 }
             }
 
@@ -81,6 +68,7 @@ impl PeerRunner {
     async fn handle_message(&mut self, _id: Identity, message: Message) {
         match message {
             Plaintext(str) => println!("Peer #{} got: {}", self.peer.id, str),
+            _ => {}
         }
     }
 }

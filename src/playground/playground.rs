@@ -1,3 +1,5 @@
+use uuid::Uuid;
+
 /*
 use std::char;
 use std::collections::HashMap;
@@ -137,3 +139,6 @@ async fn hashMapConcurrent(){
        tokio::spawn(readMap(map.clone(), 'c'));
    }
 }*/
+fn void(){
+    let x = Uuid::new_v4();
+}
