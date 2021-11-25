@@ -1,44 +1,38 @@
 use std::time::Duration;
 
 use crate::crypto::identity_table::IdentityTable;
-use crate::{talk::command::Command, talk::message::Message, system::peer::Peer};
+use crate::{system::peer::Peer, talk::command::Command, talk::message::Message};
 use talk::{crypto::Identity, sync::fuse::Fuse};
-use tokio::sync::mpsc::{Receiver as MPSCReceiver};
+use tokio::sync::mpsc::Receiver as MPSCReceiver;
+
+use super::peer_runner::PeerRunner;
 
 /// A replica is a peer that has a defined behavior in the system
 /// Formally, it is a replica runner. To make it easier, we will
 /// define the replica as the same entity as its runner
 
 pub struct Replica {
-    replica: Peer,
-    outlet: MPSCReceiver<Command>,
+    runner: PeerRunner,
     identity_table: IdentityTable,
-    pub fuse: Fuse,
 }
 
 impl Replica {
-    pub fn new(
-        replica: Peer,
-        outlet: MPSCReceiver<Command>,
-        identity_table: &IdentityTable,
-    ) -> Self {
+    pub fn new(runner: PeerRunner, identity_table: &IdentityTable) -> Self {
         Replica {
-            replica,
-            outlet,
+            runner,
             identity_table: identity_table.clone(),
-            fuse: Fuse::new(),
         }
     }
 
     pub async fn run(&mut self) {
         loop {
             tokio::select! {
-                (id, message, _) = self.replica.receiver.receive() => {
+                (id, message, _) = self.runner.peer.receiver.receive() => {
                     println!("Received something");
                     self.handle_message(id, message).await;
                 }
 
-                Some(command) = self.outlet.recv() => {
+                Some(command) = self.runner.outlet.recv() => {
                     self.handle_command(command).await;
                 }
             }

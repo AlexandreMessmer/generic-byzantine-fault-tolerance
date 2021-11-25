@@ -1,8 +1,11 @@
 use talk::crypto::Identity;
 
+use crate::system::peer::PeerId;
+
+#[derive(Debug)]
 pub struct IdentityTable {
-    pub clients: Vec<Identity>,
-    pub replicas: Vec<Identity>,
+    clients: Vec<Identity>,
+    replicas: Vec<Identity>,
 }
 
 impl IdentityTable {
@@ -12,6 +15,38 @@ impl IdentityTable {
 
     pub fn initiate() -> IdentityTableBuilder {
         IdentityTableBuilder::new()
+    }
+
+    pub fn client_identity(&self, id: PeerId) -> Option<Identity> {
+        if id < self.clients.len() {
+            return Some(self.clients.get(id).unwrap().clone());
+        }
+
+        None
+    }
+
+    pub fn replica_identity(&self, id: PeerId) -> Option<Identity> {
+        if id < self.replicas.len() {
+            return Some(self.replicas.get(id).unwrap().clone());
+        }
+
+        None
+    }
+
+    pub fn replicas(&self) -> &Vec<Identity> {
+        &self.replicas
+    }
+
+    pub fn clients(&self) -> &Vec<Identity> {
+        &self.clients
+    }
+
+    pub fn nbr_clients(&self) -> usize {
+        self.clients.len()
+    }
+
+    pub fn nbr_replicas(&self) -> usize {
+        self.replicas.len()
     }
 }
 

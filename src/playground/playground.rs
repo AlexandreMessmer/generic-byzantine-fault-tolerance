@@ -139,6 +139,6 @@ async fn hashMapConcurrent(){
        tokio::spawn(readMap(map.clone(), 'c'));
    }
 }*/
-fn void(){
+fn void() {
     let x = Uuid::new_v4();
 }

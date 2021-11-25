@@ -4,6 +4,6 @@ use uuid::Uuid;
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Message {
     Plaintext(String),
-    ACK(Uuid, ),
+    ACK(Uuid),
     CHK(Uuid),
 }

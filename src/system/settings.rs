@@ -12,8 +12,17 @@ pub struct Settings {
 }
 const BYZANTINE_F: usize = 2;
 const BYZANTINE_RATE: f32 = 1.0 / 10.0;
+const DEFAULT_TRANSMISSION_DELAY: Duration = Duration::from_millis(20);
+
 impl Settings {
-    pub fn new(nbr_clients: usize, nbr_replicas: usize, nbr_byzantine_clients: usize, nbr_byzantine_replicas: usize, transmition_delay: Duration, n_ack: usize) -> Self {
+    pub fn new(
+        nbr_clients: usize,
+        nbr_replicas: usize,
+        nbr_byzantine_clients: usize,
+        nbr_byzantine_replicas: usize,
+        transmition_delay: Duration,
+        n_ack: usize,
+    ) -> Self {
         Settings {
             nbr_clients,
             nbr_replicas,
@@ -25,19 +34,37 @@ impl Settings {
     }
 
     pub fn default_settings(nbr_clients: usize, nbr_replicas: usize) -> Self {
-        Settings::new(nbr_clients, nbr_replicas, )
-        
+        Settings::new(
+            nbr_clients,
+            nbr_replicas,
+            (nbr_clients as f32 * BYZANTINE_RATE) as usize,
+            BYZANTINE_F,
+            DEFAULT_TRANSMISSION_DELAY,
+            (nbr_replicas + BYZANTINE_F + 1) / 2,
+        )
     }
 
-    pub async fn delay(&self) {
+    pub async fn simulate_delay(&self) {
         sleep(self.transmition_delay.clone()).await;
     }
 
-    pub fn byzantine_peers(&self) {
-        self.byzantine_peers;
+    pub fn nbr_clients(&self) -> usize {
+        self.nbr_clients
     }
 
-    pub fn n_ack(&self){
+    pub fn nbr_replicas(&self) -> usize {
+        self.nbr_replicas
+    }
+
+    pub fn nbr_byzantine_clients(&self) -> usize {
+        self.nbr_byzantine_clients
+    }
+
+    pub fn nbr_byzantine_replicas(&self) -> usize {
+        self.nbr_byzantine_replicas
+    }
+
+    pub fn n_ack(&self) {
         self.n_ack;
     }
 }

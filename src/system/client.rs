@@ -7,40 +7,39 @@ use tokio::sync::mpsc::Receiver as MPSCReceiver;
 use tokio::time::sleep;
 use uuid::Uuid;
 
+use super::peer::PeerId;
+use super::peer_runner::PeerRunner;
+
 /// A client is a peer that has a defined behavior in the system
 /// Formally, it is a client runner. To make it easier, we will
 /// define the client as the same entity as its runner
 
 pub struct Client {
-    client: Peer,
-    outlet: MPSCReceiver<Command>,
+    runner: PeerRunner,
     identity_table: IdentityTable,
-    pub fuse: Fuse,
 }
 
 impl Client {
-    pub fn new(
-        client: Peer,
-        outlet: MPSCReceiver<Command>,
-        identity_table: &IdentityTable,
-    ) -> Self {
+    pub fn new(runner: PeerRunner, identity_table: &IdentityTable) -> Self {
         Client {
-            client,
-            outlet,
+            runner,
             identity_table: identity_table.clone(),
-            fuse: Fuse::new(),
         }
+    }
+
+    pub fn id(&self) -> PeerId {
+        self.runner.peer.id
     }
 
     pub async fn run(&mut self) {
         loop {
             tokio::select! {
-                (id, message, _) = self.client.receiver.receive() => {
+                (id, message, _) = self.runner.peer.receiver.receive() => {
                     println!("Received something");
                     self.handle_message(id, message).await;
                 }
 
-                Some(command) = self.outlet.recv() => {
+                Some(command) = self.runner.outlet.recv() => {
                     self.handle_command(command).await;
                 }
             }
@@ -50,11 +49,13 @@ impl Client {
     async fn handle_command(&mut self, command: Command) {
         match command {
             Command::Execute(message) => {
-                let replicas = self.identity_table.replicas.iter();
+                let replicas = self.identity_table.replicas().iter();
                 for replica in replicas {
-                    self.client
-                        .sender
-                        .spawn_send(replica.clone(), message.clone(), &self.fuse);
+                    self.runner.peer.sender.spawn_send(
+                        replica.clone(),
+                        message.clone(),
+                        &self.runner.fuse,
+                    );
                 }
                 //todo!("Implement the wait until, and return a res");
             }

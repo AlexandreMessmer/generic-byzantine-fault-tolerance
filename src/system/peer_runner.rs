@@ -3,6 +3,7 @@ use std::time::Duration;
 use talk::crypto::Identity;
 
 use talk::sync::fuse::Fuse;
+use talk::unicast::Receiver;
 use tokio::sync::mpsc::Receiver as MPSCReceiver;
 
 use crate::system::peer::Peer;
@@ -10,23 +11,18 @@ use crate::talk::command::Command;
 use crate::talk::message::Message::{self, Plaintext};
 
 pub struct PeerRunner {
-    peer: Peer,
-    runner_outlet: MPSCReceiver<Command>,
-    keys_table: Vec<Identity>,
-    fuse: Fuse,
+    pub peer: Peer,
+    pub outlet: MPSCReceiver<Command>,
+    pub keys_table: Vec<Identity>,
+    pub fuse: Fuse,
 }
 
 impl PeerRunner {
-    pub fn new(
-        peer: Peer,
-        runner_outlet: MPSCReceiver<Command>,
-        keys_table: Vec<Identity>,
-    ) -> Self {
+    pub fn new(peer: Peer, outlet: MPSCReceiver<Command>, keys_table: Vec<Identity>) -> Self {
         PeerRunner {
             peer,
-            runner_outlet,
+            outlet,
             keys_table,
-
             fuse: Fuse::new(),
         }
     }
@@ -39,7 +35,7 @@ impl PeerRunner {
                     self.handle_message(id, message).await;
                 }
 
-                Some(command) = self.runner_outlet.recv() => {
+                Some(command) = self.outlet.recv() => {
                     self.handle_command(command).await;
                 }
             }
