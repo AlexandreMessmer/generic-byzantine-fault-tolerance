@@ -1,4 +1,4 @@
-use crate::crypto::identity_table::{self, IdentityTable};
+use crate::crypto::identity_table::{IdentityTable};
 use crate::system::peer::{Peer, PeerId};
 use crate::talk::command::Command;
 use crate::talk::message::Message;
