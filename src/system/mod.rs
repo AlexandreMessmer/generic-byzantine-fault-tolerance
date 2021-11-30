@@ -13,6 +13,12 @@ pub mod replica;
 pub mod settings;
 pub mod runner;
 
+use talk::{unicast::{Receiver as TalkReceiver, Sender as TalkSender}, crypto::Identity};
+
+type PeerIdentifier = (PeerType, PeerId);
+type Sender = TalkSender<Message>;
+type Receiver = TalkReceiver<Message>;
+
 pub enum PeerType {
     Client,
     Replica,
@@ -32,10 +38,3 @@ impl Database {
         }
     }
 }
-
-use talk::unicast::{Receiver as TalkReceiver, Sender as TalkSender};
-
-type PeerIdentifier = (PeerType, PeerId);
-type Sender = TalkSender<Message>;
-type Receiver = TalkReceiver<Message>;
-
