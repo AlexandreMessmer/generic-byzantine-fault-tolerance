@@ -1,4 +1,4 @@
-use crate::system::peer::{Peer, PeerId};
+use crate::system::{Peer, PeerId};
 use crate::talk::command::Command;
 use talk::sync::fuse::Fuse;
 use talk::unicast::test::UnicastSystem;
@@ -6,19 +6,7 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::Receiver as MPSCReceiver;
 use tokio::sync::mpsc::Sender as MPSCSender;
 
-use super::peer_runner::PeerRunner;
-
-/// Define a system of peers. Command can be given to peer through the MPSC channel.
-///
-/// Each peer runs a `PeerRunner` that handles incoming request. We can pass information to each peer through
-/// message handling (see https://tokio.rs/tokio/tutorial/channels).
-///
-/// The index of each peer runner inlet is the id of the peer, from 0 to size (excluded)
-pub struct PeerSystem {
-    size: usize,
-    runner_inlets: Vec<MPSCSender<Command>>,
-    pub fuse: Fuse,
-}
+use super::*;
 
 impl PeerSystem {
     /// Setup a new system of peers. Each peer runs on a `PeerRunner`, that handle the incoming messages (from the runner

@@ -5,16 +5,11 @@ use talk::{
 
 use crate::talk::message::Message;
 
+use crate::system::*;
+
 /// Structure that defines a `Peer`, i.e. an entity that can send and receive `Message`
 /// Its behavior is defined by a `PeerRunner`
 
-pub type PeerId = usize;
-pub struct Peer {
-    pub id: PeerId,
-    pub key: Identity,
-    pub sender: Sender<Message>,
-    pub receiver: Receiver<Message>,
-}
 
 impl Peer {
     /// Create a new `Peer`from the given arguments

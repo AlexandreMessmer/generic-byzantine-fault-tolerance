@@ -1,6 +1,5 @@
 use talk::crypto::Identity;
-
-use crate::system::peer::PeerId;
+use crate::system::PeerId;
 
 #[derive(Debug)]
 pub struct IdentityTable {

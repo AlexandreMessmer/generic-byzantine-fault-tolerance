@@ -1,5 +1,5 @@
 use crate::crypto::identity_table::{IdentityTable};
-use crate::system::peer::{Peer, PeerId};
+use crate::system::{Peer, PeerId};
 use crate::talk::command::Command;
 use crate::talk::message::Message;
 use talk::crypto::Identity;
@@ -10,7 +10,6 @@ use tokio::sync::mpsc::Receiver as MPSCReceiver;
 use tokio::sync::mpsc::Sender as MPSCSender;
 
 use super::client::Client;
-use super::peer_runner::PeerRunner;
 use super::replica::Replica;
 use super::settings::Settings;
 use super::{PeerIdentifier, PeerType};

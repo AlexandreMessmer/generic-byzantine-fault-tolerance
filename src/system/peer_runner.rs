@@ -5,19 +5,13 @@ use talk::crypto::Identity;
 use talk::sync::fuse::Fuse;
 use tokio::sync::mpsc::Receiver as MPSCReceiver;
 
-use crate::system::peer::Peer;
+use crate::system::Peer;
 use crate::talk::command::Command;
 use crate::talk::message::Message::{self, Plaintext};
 use super::*;
-pub struct PeerRunner {
-    pub peer: Peer,
-    pub outlet: MPSCReceiver<Command>,
-    pub keys_table: Vec<Identity>,
-    pub fuse: Fuse,
-}
 
 impl PeerRunner {
-    pub fn new(peer: Peer, outlet: MPSCReceiver<Command>, keys_table: Vec<Identity>) -> Self {
+    pub(in crate::system) fn new(peer: Peer, outlet: MPSCReceiver<Command>, keys_table: Vec<Identity>) -> Self {
         PeerRunner {
             peer,
             outlet,
@@ -92,3 +86,4 @@ impl PeerRunner {
             .collect::<Vec<_>>()
     }
 }
+

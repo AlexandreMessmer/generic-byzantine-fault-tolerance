@@ -1,12 +1,10 @@
 use std::time::Duration;
 
 use crate::crypto::identity_table::IdentityTable;
-use crate::{system::peer::Peer, talk::command::Command, talk::message::Message};
+use crate::{talk::command::Command, talk::message::Message};
 use talk::{crypto::Identity, sync::fuse::Fuse};
 use tokio::sync::mpsc::Receiver as MPSCReceiver;
-
-use super::peer::PeerId;
-use super::peer_runner::PeerRunner;
+use super::*;
 use super::runner::Runner;
 
 /// A replica is a peer that has a defined behavior in the system

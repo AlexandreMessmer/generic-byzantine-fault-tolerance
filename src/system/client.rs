@@ -3,16 +3,16 @@ use std::time::Duration;
 
 use crate::crypto::identity_table::IdentityTable;
 use crate::talk::feedback::Feedback;
-use crate::{system::peer::Peer, talk::command::Command, talk::message::Message};
+use crate::{system::Peer, talk::command::Command, talk::message::Message};
 use talk::{crypto::Identity, sync::fuse::Fuse};
 use tokio::sync::mpsc::Receiver as MPSCReceiver;
 use tokio::time::sleep;
 use uuid::Uuid;
 
 use super::Database;
-use super::peer::PeerId;
-use super::peer_runner::PeerRunner;
+use super::PeerId;
 use super::runner::Runner;
+use super::*;
 use crate::talk::RequestId;
 /// A client is a peer that has a defined behavior in the system
 /// Formally, it is a client runner. To make it easier, we will
