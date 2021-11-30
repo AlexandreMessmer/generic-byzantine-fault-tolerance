@@ -3,13 +3,12 @@ use std::time::Duration;
 use talk::crypto::Identity;
 
 use talk::sync::fuse::Fuse;
-use talk::unicast::Receiver;
 use tokio::sync::mpsc::Receiver as MPSCReceiver;
 
 use crate::system::peer::Peer;
 use crate::talk::command::Command;
 use crate::talk::message::Message::{self, Plaintext};
-
+use super::*;
 pub struct PeerRunner {
     pub peer: Peer,
     pub outlet: MPSCReceiver<Command>,
@@ -66,5 +65,30 @@ impl PeerRunner {
             Plaintext(str) => println!("Peer #{} got: {}", self.peer.id, str),
             _ => {}
         }
+    }
+
+    pub fn compose_runners(
+        nbr: usize,
+        keys: Vec<Identity>,
+        senders: Vec<Sender>,
+        receivers: Vec<Receiver>,
+        outlets: Vec<MPSCReceiver<Command>>,
+        keys_table: Vec<Identity>,
+    ) -> Vec<PeerRunner> {
+        let (keys, senders, receivers) =
+            (keys.into_iter(), senders.into_iter(), receivers.into_iter());
+        let ids = (0..nbr).into_iter();
+        ids.zip(keys)
+            .zip(senders)
+            .zip(receivers)
+            .zip(outlets)
+            .map(|((((id, key), sender), receiver), outlet)| {
+                PeerRunner::new(
+                    Peer::new(id, key, sender, receiver),
+                    outlet,
+                    keys_table.clone(),
+                )
+            })
+            .collect::<Vec<_>>()
     }
 }
