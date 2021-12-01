@@ -5,18 +5,24 @@ use talk::crypto::Identity;
 use talk::sync::fuse::Fuse;
 use tokio::sync::mpsc::Receiver as MPSCReceiver;
 
+use super::*;
 use crate::system::Peer;
 use crate::talk::command::Command;
 use crate::talk::message::Message::{self, Plaintext};
-use super::*;
 
 impl PeerRunner {
-    pub(in crate::system) fn new(peer: Peer, outlet: MPSCReceiver<Command>, keys_table: Vec<Identity>) -> Self {
+    pub(in crate::system) fn new(
+        peer: Peer,
+        outlet: MPSCReceiver<Command>,
+        keys_table: Vec<Identity>,
+        settings: RunnerSettings,
+    ) -> Self {
         PeerRunner {
             peer,
             outlet,
             keys_table,
             fuse: Fuse::new(),
+            settings,
         }
     }
 
@@ -68,6 +74,7 @@ impl PeerRunner {
         receivers: Vec<Receiver>,
         outlets: Vec<MPSCReceiver<Command>>,
         keys_table: Vec<Identity>,
+        settings: RunnerSettings,
     ) -> Vec<PeerRunner> {
         let (keys, senders, receivers) =
             (keys.into_iter(), senders.into_iter(), receivers.into_iter());
@@ -81,9 +88,9 @@ impl PeerRunner {
                     Peer::new(id, key, sender, receiver),
                     outlet,
                     keys_table.clone(),
+                    settings.clone(),
                 )
             })
             .collect::<Vec<_>>()
     }
 }
-

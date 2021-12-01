@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::talk::{message::Message, RequestId, command::Command};
+use crate::{
+    settings::RunnerSettings,
+    talk::{command::Command, message::Message, RequestId},
+};
 
 pub mod byzantine_system;
 pub mod client;
@@ -8,10 +11,13 @@ pub mod peer;
 pub mod peer_runner;
 pub mod peer_system;
 pub mod replica;
-pub mod settings;
 pub mod runner;
 
-use talk::{unicast::{Receiver as TalkReceiver, Sender as TalkSender}, crypto::Identity, sync::fuse::Fuse};
+use talk::{
+    crypto::Identity,
+    sync::fuse::Fuse,
+    unicast::{Receiver as TalkReceiver, Sender as TalkSender},
+};
 
 type PeerIdentifier = (PeerType, PeerId);
 type Sender = TalkSender<Message>;
@@ -47,13 +53,14 @@ struct Peer {
 
 use tokio::sync::mpsc::Receiver as MPSCReceiver;
 use tokio::sync::mpsc::Sender as MPSCSender;
+
 pub struct PeerRunner {
     peer: Peer,
     outlet: MPSCReceiver<Command>,
     keys_table: Vec<Identity>,
     fuse: Fuse,
+    settings: RunnerSettings,
 }
-
 
 /// Define a system of peers. Command can be given to peer through the MPSC channel.
 ///

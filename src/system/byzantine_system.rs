@@ -1,4 +1,4 @@
-use crate::crypto::identity_table::{IdentityTable};
+use crate::crypto::identity_table::IdentityTable;
 use crate::system::{Peer, PeerId};
 use crate::talk::command::Command;
 use crate::talk::message::Message;
@@ -11,9 +11,9 @@ use tokio::sync::mpsc::Sender as MPSCSender;
 
 use super::client::Client;
 use super::replica::Replica;
-use super::settings::Settings;
-use super::{PeerIdentifier, PeerType};
 use super::*;
+use super::{PeerIdentifier, PeerType};
+use crate::settings::{RunnerSettings, SystemSettings as Settings};
 
 /// Use a PeerSystem as model.
 pub struct ByzantineSystem {
@@ -24,7 +24,6 @@ pub struct ByzantineSystem {
 }
 
 impl ByzantineSystem {
-
     pub async fn setup(nbr_clients: usize, nbr_replicas: usize) -> Self {
         let (client_inlets, client_outlets) = ByzantineSystem::create_channels(nbr_clients);
         let (replica_inlets, replica_outlets) = ByzantineSystem::create_channels(nbr_replicas);
@@ -46,7 +45,7 @@ impl ByzantineSystem {
         }
 
         let identity_table = IdentityTable::new(keys.clone(), replica_keys.clone());
-
+        let system_settings = Settings::default_settings(nbr_clients, nbr_replicas);
         let clients: Vec<Client> = PeerRunner::compose_runners(
             nbr_clients,
             keys,
@@ -54,6 +53,7 @@ impl ByzantineSystem {
             receivers,
             client_outlets,
             Vec::new(),
+            RunnerSettings::from_system(&system_settings),
         )
         .into_iter()
         .map(|runner| Client::new(runner, &identity_table))
@@ -66,6 +66,7 @@ impl ByzantineSystem {
             replica_receivers,
             replica_outlets,
             Vec::new(),
+            RunnerSettings::from_system(&system_settings),
         )
         .into_iter()
         .map(|runner| Replica::new(runner, &identity_table))
@@ -88,7 +89,7 @@ impl ByzantineSystem {
             }
         }
         ByzantineSystem {
-            settings: Settings::default_settings(nbr_clients, nbr_replicas),
+            settings: system_settings,
             client_inlets,
             replica_inlets,
             fuse,
@@ -137,7 +138,6 @@ impl ByzantineSystem {
 
         (inlets, outlets)
     }
-
 }
 
 #[cfg(test)]
@@ -159,7 +159,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn client_should_answer_command_1(){
+    async fn client_should_answer_command_1() {
         let system: ByzantineSystem = ByzantineSystem::setup(4, 0).await.into();
         let (tx, rx) = oneshot::channel::<Command>();
         system.send_command(Command::Testing(None), (PeerType::Client, 0));
@@ -169,20 +169,19 @@ mod tests {
         system.send_command(Command::Testing(Some(tx)), (PeerType::Client, 0));
         if let Command::Answer = rx.await.unwrap() {
             println!("Test completed!");
-        }
-        else {
+        } else {
             panic!();
         }
     }
 
     #[tokio::test]
-    async fn client_should_answer_command_2(){
+    async fn client_should_answer_command_2() {
         let system: ByzantineSystem = ByzantineSystem::setup(2, 2).await.into();
         let (tx1, rx1) = oneshot::channel::<Command>();
         let (tx2, rx2) = oneshot::channel::<Command>();
         let t1 = system.send_command(Command::Testing(Some(tx1)), (PeerType::Client, 0));
         let t2 = system.send_command(Command::Testing(Some(tx2)), (PeerType::Client, 1));
-       // tokio::join!(t1, t2);
+        // tokio::join!(t1, t2);
         let mut count = 0;
         if let Command::Answer = rx1.await.unwrap() {
             count += 1;
@@ -196,7 +195,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn client_database_registers_correctly(){
+    async fn client_database_registers_correctly() {
         let system: ByzantineSystem = ByzantineSystem::setup(4, 0).await.into();
         for i in 0..4 {
             let _ = system.send_command(Command::Testing(None), (PeerType::Client, i));
@@ -204,7 +203,10 @@ mod tests {
         tokio::time::sleep(Duration::from_secs(1)).await;
         for i in 0..4 {
             let (tx, rx) = oneshot::channel();
-            let _ = system.send_command(Command::AskStatus(Message::Testing, tx), (PeerType::Client, i));
+            let _ = system.send_command(
+                Command::AskStatus(Message::Testing, tx),
+                (PeerType::Client, i),
+            );
             let res = rx.await;
             println!("{:?}", res);
         }

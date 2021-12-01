@@ -31,29 +31,16 @@ impl PeerSystem {
         } = UnicastSystem::setup(peers).await.into();
 
         let keys_table = keys.clone();
-        let keys = keys.into_iter();
-        let senders = senders.into_iter();
-        let receivers = receivers.into_iter();
-        let outlets = outlets.into_iter();
-        let ids = 0..peers;
-        let ids = ids.into_iter();
 
-        let peer_runners: Vec<PeerRunner> = ids
-            .zip(keys)
-            .zip(senders)
-            .zip(receivers)
-            .zip(outlets)
-            .map(|((((id, key), sender), receiver), runner_outlet)| {
-                let keys_table = keys_table.clone();
-                let peer = Peer {
-                    id,
-                    key,
-                    sender,
-                    receiver,
-                };
-                PeerRunner::new(peer, runner_outlet, keys_table)
-            })
-            .collect::<Vec<_>>();
+        let peer_runners: Vec<PeerRunner> = PeerRunner::compose_runners(
+            peers,
+            keys,
+            senders,
+            receivers,
+            outlets,
+            keys_table,
+            RunnerSettings::default(),
+        );
 
         let fuse = Fuse::new();
 

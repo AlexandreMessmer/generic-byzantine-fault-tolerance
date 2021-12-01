@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use super::{RequestId, feedback::Feedback};
+use super::{feedback::Feedback, RequestId};
 
 /// Peers exchange Message.
 /// This is defined to work for talk unicast systems.
@@ -13,6 +13,4 @@ pub enum Message {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
-pub struct MessageResult {
-
-}
+pub struct MessageResult {}

@@ -1,5 +1,5 @@
-use tokio::sync::oneshot::{Sender as OneshotSender, Receiver as OneshotReceiver};
-use super::{RequestId, feedback::Feedback, message::Message};
+use super::{feedback::Feedback, message::Message, RequestId};
+use tokio::sync::oneshot::{Receiver as OneshotReceiver, Sender as OneshotSender};
 type FeedbackSender = OneshotSender<Feedback>;
 
 /// A command is a type of message for message passing.

@@ -10,7 +10,6 @@ use crate::system::*;
 /// Structure that defines a `Peer`, i.e. an entity that can send and receive `Message`
 /// Its behavior is defined by a `PeerRunner`
 
-
 impl Peer {
     /// Create a new `Peer`from the given arguments
     ///

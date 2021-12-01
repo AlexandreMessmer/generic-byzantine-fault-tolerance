@@ -1,26 +1,23 @@
 use std::collections::HashMap;
 use std::time::Duration;
 
-use crate::crypto::identity_table::IdentityTable;
-use crate::talk::feedback::{Feedback, Result};
-use crate::{system::Peer, talk::command::Command, talk::message::Message};
-use talk::{crypto::Identity, sync::fuse::Fuse};
-use tokio::sync::mpsc::Receiver as MPSCReceiver;
-use tokio::time::sleep;
-use uuid::Uuid;
-
+use super::runner::Runner;
 use super::Database;
 use super::PeerId;
-use super::runner::Runner;
 use super::*;
-use crate::talk::RequestId;
+use crate::crypto::identity_table::IdentityTable;
+use crate::settings::RunnerSettings as Settings;
+use crate::talk::feedback::{Feedback, Result};
+use crate::{talk::command::Command, talk::message::Message};
+use talk::crypto::Identity;
+use tokio::time::sleep;
 /// A client is a peer that has a defined behavior in the system
 /// Formally, it is a client runner. To make it easier, we will
 /// define the client as the same entity as its runner
 pub struct Client {
     runner: PeerRunner,
     identity_table: IdentityTable,
-    database: Database
+    database: Database,
 }
 
 impl Client {
@@ -50,9 +47,10 @@ impl Client {
         match command {
             Command::Execute(message, id, tx) => {
                 if self.database.request.contains_key(&id) {
-                    let _ = tx.send(Feedback::Error(String::from("The message has already been sent")));
-                }
-                else {
+                    let _ = tx.send(Feedback::Error(String::from(
+                        "The message has already been sent",
+                    )));
+                } else {
                     let replicas = self.identity_table.replicas().iter();
                     for replica_id in replicas {
                         self.runner.peer.sender.spawn_send(
@@ -64,22 +62,22 @@ impl Client {
                     self.database.request.insert(id, HashMap::new());
                 }
                 //todo!("Implement the wait until, and return a res");
-            },
+            }
             Command::Testing(sender) => {
                 println!("Client #{} starts testing...", self.id());
-                    for client in self.identity_table.clients().iter() {
-                        self.send(client, Message::Testing);
-                    }
-                    for replica in self.identity_table.replicas() {
-                        self.send(replica, Message::Testing);
-                    }
+                for client in self.identity_table.clients().iter() {
+                    self.send(client, Message::Testing);
+                }
+                for replica in self.identity_table.replicas() {
+                    self.send(replica, Message::Testing);
+                }
                 if let Some(rx) = sender {
                     let _ = rx.send(Command::Answer);
                 }
-            },
+            }
             Command::AskStatus(message, rx) => {
                 let res = self.database.received.get(&message);
-                let res = res.map(| x | Result::new(*x));
+                let res = res.map(|x| Result::new(*x));
                 let _ = rx.send(Feedback::Res(res));
             }
             _ => {}
@@ -91,12 +89,15 @@ impl Client {
             Message::Testing => {
                 println!("Client #{} receives the test", self.id());
                 let db = &mut self.database.received;
-                db.insert(message.clone(), if db.contains_key(&message) {
-                    db.get(&message).unwrap() + 1
-                } else {
-                    1
-                });
-            },
+                db.insert(
+                    message.clone(),
+                    if db.contains_key(&message) {
+                        db.get(&message).unwrap() + 1
+                    } else {
+                        1
+                    },
+                );
+            }
             Message::ACK(id, res) => {
                 (id, res);
             }
@@ -108,18 +109,19 @@ impl Client {
         sleep(Duration::from_secs(10)).await;
         2
     }
-
 }
 
 impl Runner for Client {
-    fn send(&self, target: &Identity, message: Message){
-        self.runner.peer.sender.spawn_send(target.clone(), message, &self.runner.fuse);
+    fn send(&self, target: &Identity, message: Message) {
+        self.runner
+            .peer
+            .sender
+            .spawn_send(target.clone(), message, &self.runner.fuse);
     }
 
-    fn id(&self) -> PeerId{
+    fn id(&self) -> PeerId {
         self.runner.peer.id
     }
-
 }
 
 #[cfg(test)]
@@ -131,7 +133,7 @@ mod tests {
     use crate::talk::{command::Command, message::Message};
 
     #[test]
-    fn equality_for_enum(){
+    fn equality_for_enum() {
         let mut db: HashMap<Message, usize> = HashMap::new();
         let e1 = Message::Plaintext(String::from("Hello"));
         db.insert(e1.clone(), 0);
