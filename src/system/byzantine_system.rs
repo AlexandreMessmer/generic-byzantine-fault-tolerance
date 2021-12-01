@@ -95,13 +95,13 @@ impl ByzantineSystem {
         }
     }
 
-    pub async fn send_command(&self, command: Command, (kind, id): PeerIdentifier) {
+    pub fn send_command(&self, command: Command, (kind, id): PeerIdentifier) {
         let inlet = match kind {
             PeerType::Client => self.client_inlet(id),
             PeerType::Replica => self.replica_inlet(id),
         };
         if let Some(inlet) = inlet {
-            tokio::spawn(async move {
+            self.fuse.spawn(async move {
                 inlet.send(command).await.unwrap();
             });
         }
@@ -142,7 +142,11 @@ impl ByzantineSystem {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use tokio::sync::oneshot;
+
+    use crate::{system, talk::feedback::Feedback};
 
     use super::*;
 
@@ -158,16 +162,11 @@ mod tests {
     async fn client_should_answer_command_1(){
         let system: ByzantineSystem = ByzantineSystem::setup(4, 0).await.into();
         let (tx, rx) = oneshot::channel::<Command>();
-        let t1 = system.send_command(Command::Testing(None), (PeerType::Client, 0));
-        let t2 = system.send_command(Command::Testing(None), (PeerType::Client, 1));
-        let t3 = system.send_command(Command::Testing(None), (PeerType::Client, 2));
-        let t4 = system.send_command(Command::Testing(None), (PeerType::Client, 3));
-        let t5 = system.send_command(Command::Testing(Some(tx)), (PeerType::Client, 0));
-        let v = vec![t1, t2, t3, t4];
-        for task in v {
-            tokio::join!(task);
-        }
-        tokio::join!(t5);
+        system.send_command(Command::Testing(None), (PeerType::Client, 0));
+        system.send_command(Command::Testing(None), (PeerType::Client, 1));
+        system.send_command(Command::Testing(None), (PeerType::Client, 2));
+        system.send_command(Command::Testing(None), (PeerType::Client, 3));
+        system.send_command(Command::Testing(Some(tx)), (PeerType::Client, 0));
         if let Command::Answer = rx.await.unwrap() {
             println!("Test completed!");
         }
@@ -183,7 +182,7 @@ mod tests {
         let (tx2, rx2) = oneshot::channel::<Command>();
         let t1 = system.send_command(Command::Testing(Some(tx1)), (PeerType::Client, 0));
         let t2 = system.send_command(Command::Testing(Some(tx2)), (PeerType::Client, 1));
-        tokio::join!(t1, t2);
+       // tokio::join!(t1, t2);
         let mut count = 0;
         if let Command::Answer = rx1.await.unwrap() {
             count += 1;
@@ -194,5 +193,22 @@ mod tests {
         }
 
         assert_eq!(count, 2);
+    }
+
+    #[tokio::test]
+    async fn client_database_registers_correctly(){
+        let system: ByzantineSystem = ByzantineSystem::setup(4, 0).await.into();
+        for i in 0..4 {
+            let _ = system.send_command(Command::Testing(None), (PeerType::Client, i));
+        }
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        for i in 0..4 {
+            let (tx, rx) = oneshot::channel();
+            let _ = system.send_command(Command::AskStatus(Message::Testing, tx), (PeerType::Client, i));
+            let res = rx.await;
+            println!("{:?}", res);
+        }
+
+        tokio::time::sleep(Duration::from_secs(2)).await;
     }
 }

@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 
 use crate::crypto::identity_table::IdentityTable;
-use crate::talk::feedback::Feedback;
+use crate::talk::feedback::{Feedback, Result};
 use crate::{system::Peer, talk::command::Command, talk::message::Message};
 use talk::{crypto::Identity, sync::fuse::Fuse};
 use tokio::sync::mpsc::Receiver as MPSCReceiver;
@@ -76,6 +76,11 @@ impl Client {
                 if let Some(rx) = sender {
                     let _ = rx.send(Command::Answer);
                 }
+            },
+            Command::AskStatus(message, rx) => {
+                let res = self.database.received.get(&message);
+                let res = res.map(| x | Result::new(*x));
+                let _ = rx.send(Feedback::Res(res));
             }
             _ => {}
         }
@@ -84,7 +89,13 @@ impl Client {
     async fn handle_message(&mut self, _id: Identity, message: Message) {
         match message {
             Message::Testing => {
-                println!("Client #{} receives the test", self.id())
+                println!("Client #{} receives the test", self.id());
+                let db = &mut self.database.received;
+                db.insert(message.clone(), if db.contains_key(&message) {
+                    db.get(&message).unwrap() + 1
+                } else {
+                    1
+                });
             },
             Message::ACK(id, res) => {
                 (id, res);

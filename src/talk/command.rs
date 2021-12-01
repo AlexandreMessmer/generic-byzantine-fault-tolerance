@@ -7,8 +7,8 @@ type FeedbackSender = OneshotSender<Feedback>;
 #[derive(Debug)]
 pub enum Command {
     Send(usize, Message),
-    SendAndWait(usize, Message, FeedbackSender),
     Execute(Message, RequestId, FeedbackSender),
     Testing(Option<OneshotSender<Command>>), // Only for testing purposes
+    AskStatus(Message, FeedbackSender),
     Answer,
 }

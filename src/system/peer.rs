@@ -28,8 +28,4 @@ impl Peer {
             receiver,
         }
     }
-
-    pub fn key(&self) -> Identity {
-        self.key.clone()
-    }
 }

@@ -7,10 +7,23 @@ use super::message::Message;
 pub enum Feedback{
     Error(String),
     Acknowledgement,
-    Res(Result),
+    Res(Option<Result>),
 }
 
+type ResultContent = usize;
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
 pub struct Result{
-    res: u64,
+    res: ResultContent,
+}
+
+impl Result {
+    pub fn new(value: ResultContent) -> Self {
+        Result {
+            res: value,
+        }
+    }
+
+    pub fn get(&self) -> ResultContent {
+        self.res
+    }
 }
