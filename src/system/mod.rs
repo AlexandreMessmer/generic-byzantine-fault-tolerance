@@ -50,6 +50,12 @@ impl Database {
     }
 }
 
+// struct RequestDatabase {
+//     message_results: HashMap<RequestId, MessageResultDatabase>,
+//     feedback_inlets: HashMap<RequestId, FeedbackSender>,
+// }
+// impl RequestDatabase 
+
 struct MessageResultDatabase {
     results: ResultHashMap,
     result_inlet: FeedbackSender,
