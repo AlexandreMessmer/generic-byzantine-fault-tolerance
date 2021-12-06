@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     settings::RunnerSettings,
-    talk::{Command, Message, MessageResult, RequestId, FeedbackSender, Feedback},
+    talk::{Command, Message, MessageResult, RequestId, FeedbackSender, Feedback, Instruction},
 };
 
 pub mod byzantine_system;
@@ -22,6 +22,10 @@ use tokio::sync::{
     oneshot::Sender as OneShotSender
 };
 type PeerIdentifier = (PeerType, PeerId);
+
+// Definition of some senders and receivers
+type InstructionSender = MPSCSender<Instruction>;
+type InstructionReceiver = MPSCReceiver<Instruction>;
 type Sender = TalkSender<Message>;
 type Receiver = TalkReceiver<Message>;
 

@@ -8,7 +8,7 @@ pub mod feedback_channel;
 pub mod feedback_sender;
 pub mod feedback_receiver;
 pub type RequestId = Uuid;
-
+pub type Instruction = (Command, FeedbackSender);
 pub enum Command {
     Send(usize, Message),
     Execute(Message, RequestId, FeedbackSender),
