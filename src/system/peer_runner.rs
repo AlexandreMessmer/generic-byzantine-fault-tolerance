@@ -7,8 +7,8 @@ use tokio::sync::mpsc::Receiver as MPSCReceiver;
 
 use super::*;
 use crate::system::Peer;
-use crate::talk::command::Command;
-use crate::talk::message::Message::{self, Plaintext};
+use crate::talk::Command;
+use crate::talk::Message::{self, Plaintext};
 
 impl PeerRunner {
     pub(in crate::system) fn new(
@@ -92,5 +92,9 @@ impl PeerRunner {
                 )
             })
             .collect::<Vec<_>>()
+    }
+
+    pub async fn simulate_delay(&self) {
+        tokio::time::sleep(self.settings.transmission_delay()).await;
     }
 }

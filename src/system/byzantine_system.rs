@@ -1,11 +1,10 @@
 use crate::crypto::identity_table::IdentityTable;
 use crate::system::{Peer, PeerId};
-use crate::talk::command::Command;
-use crate::talk::message::Message;
+use crate::talk::{Command, Message};
 use talk::crypto::Identity;
 use talk::sync::fuse::Fuse;
 use talk::unicast::test::UnicastSystem;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, oneshot};
 use tokio::sync::mpsc::Receiver as MPSCReceiver;
 use tokio::sync::mpsc::Sender as MPSCSender;
 
@@ -103,10 +102,11 @@ impl ByzantineSystem {
         };
         if let Some(inlet) = inlet {
             self.fuse.spawn(async move {
-                inlet.send(command).await.unwrap();
+                let s = inlet.send(command).await;
             });
         }
     }
+
 
     fn client_inlet(&self, target: PeerId) -> Option<MPSCSender<Command>> {
         ByzantineSystem::find_inlet(target, &self.client_inlets)
@@ -138,15 +138,21 @@ impl ByzantineSystem {
 
         (inlets, outlets)
     }
+
+    pub fn settings(&self) -> Settings {
+        self.settings.clone()
+    }
+
+
 }
 
 #[cfg(test)]
 mod tests {
     use std::time::Duration;
 
-    use tokio::sync::oneshot;
+    use tokio::sync::oneshot::{self, Receiver, Sender};
 
-    use crate::{system, talk::feedback::Feedback};
+    use crate::{system, talk::Feedback};
 
     use super::*;
 
@@ -179,8 +185,8 @@ mod tests {
         let system: ByzantineSystem = ByzantineSystem::setup(2, 2).await.into();
         let (tx1, rx1) = oneshot::channel::<Command>();
         let (tx2, rx2) = oneshot::channel::<Command>();
-        let t1 = system.send_command(Command::Testing(Some(tx1)), (PeerType::Client, 0));
-        let t2 = system.send_command(Command::Testing(Some(tx2)), (PeerType::Client, 1));
+        let _ = system.send_command(Command::Testing(Some(tx1)), (PeerType::Client, 0));
+        let _ = system.send_command(Command::Testing(Some(tx2)), (PeerType::Client, 1));
         // tokio::join!(t1, t2);
         let mut count = 0;
         if let Command::Answer = rx1.await.unwrap() {
@@ -200,17 +206,18 @@ mod tests {
         for i in 0..4 {
             let _ = system.send_command(Command::Testing(None), (PeerType::Client, i));
         }
-        tokio::time::sleep(Duration::from_secs(1)).await;
-        for i in 0..4 {
-            let (tx, rx) = oneshot::channel();
-            let _ = system.send_command(
-                Command::AskStatus(Message::Testing, tx),
-                (PeerType::Client, i),
-            );
-            let res = rx.await;
-            println!("{:?}", res);
-        }
 
-        tokio::time::sleep(Duration::from_secs(2)).await;
     }
+
+    #[tokio::test]
+    async fn broadcast_test(){
+        let fuse = Fuse::new();
+        for _ in 0..10 {
+            fuse.spawn(async move {
+                tokio::time::sleep(Duration::from_secs(10)).await;
+            });
+        }
+    }
+
+
 }

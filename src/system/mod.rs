@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use crate::{
     settings::RunnerSettings,
-    talk::{command::Command, message::Message, RequestId},
+    talk::{Command, Message, MessageResult, RequestId, FeedbackSender, Feedback},
 };
 
 pub mod byzantine_system;
@@ -18,7 +18,9 @@ use talk::{
     sync::fuse::Fuse,
     unicast::{Receiver as TalkReceiver, Sender as TalkSender},
 };
-
+use tokio::sync::{
+    oneshot::Sender as OneShotSender
+};
 type PeerIdentifier = (PeerType, PeerId);
 type Sender = TalkSender<Message>;
 type Receiver = TalkReceiver<Message>;
@@ -28,7 +30,8 @@ pub enum PeerType {
     Replica,
 }
 
-type RequestDatabase = HashMap<RequestId, MessageDatabase>;
+type RequestDatabase = HashMap<RequestId, MessageResultDatabase>;
+type ResultHashMap = HashMap<MessageResult, usize>;
 type MessageDatabase = HashMap<Message, usize>;
 pub struct Database {
     received: MessageDatabase,
@@ -38,9 +41,25 @@ impl Database {
     pub fn new() -> Self {
         Database {
             received: HashMap::new(),
-            request: HashMap::new(),
+            request: HashMap::<RequestId, MessageResultDatabase>::new(),
         }
     }
+}
+
+struct MessageResultDatabase {
+    results: ResultHashMap,
+    result_inlet: FeedbackSender,
+}
+impl MessageResultDatabase {
+    fn new(result_inlet: FeedbackSender) -> Self {
+        MessageResultDatabase { results: HashMap::new(), result_inlet }
+    }
+
+    fn add(&mut self, key: MessageResult) -> Option<usize>{
+        let value = self.results.get(&key).map_or(1, |x| x + 1);
+        self.results.insert(key, value)
+    }
+
 }
 
 pub type PeerId = usize;

@@ -3,7 +3,7 @@ use talk::{
     unicast::{Receiver, Sender},
 };
 
-use crate::talk::message::Message;
+use crate::talk::Message;
 
 use crate::system::*;
 

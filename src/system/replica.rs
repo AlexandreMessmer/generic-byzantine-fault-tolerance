@@ -1,17 +1,14 @@
-use std::time::Duration;
-
 use super::runner::Runner;
 use super::*;
 use crate::crypto::identity_table::IdentityTable;
-use crate::{talk::command::Command, talk::message::Message};
-use talk::{crypto::Identity, sync::fuse::Fuse};
-use tokio::sync::mpsc::Receiver as MPSCReceiver;
+use crate::{talk::Command, talk::Message};
+use talk::{crypto::Identity};
 
 /// A replica is a peer that has a defined behavior in the system
 /// Formally, it is a replica runner. To make it easier, we will
 /// define the replica as the same entity as its runner
 
-pub struct Replica {
+pub(in crate::system) struct Replica {
     runner: PeerRunner,
     identity_table: IdentityTable,
 }
@@ -55,10 +52,6 @@ impl Replica {
             }
             _ => {}
         }
-    }
-
-    async fn simulate_busy(&self) {
-        tokio::time::sleep(Duration::from_secs(2)).await;
     }
 
     async fn handle_message(&mut self, _id: Identity, message: Message) {

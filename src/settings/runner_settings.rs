@@ -14,4 +14,8 @@ impl RunnerSettings {
     pub fn from_system(system_settings: &SystemSettings) -> Self {
         RunnerSettings::new(system_settings.transmition_delay, system_settings.n_ack)
     }
+
+    pub fn transmission_delay(&self) -> Duration {
+        self.transmission_delay.clone()
+    }
 }

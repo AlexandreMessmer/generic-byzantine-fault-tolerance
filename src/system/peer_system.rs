@@ -1,5 +1,5 @@
-use crate::system::{Peer, PeerId};
-use crate::talk::command::Command;
+use crate::system::PeerId;
+use crate::talk::Command;
 use talk::sync::fuse::Fuse;
 use talk::unicast::test::UnicastSystem;
 use tokio::sync::mpsc;
@@ -28,7 +28,7 @@ impl PeerSystem {
             keys,
             senders,
             receivers,
-        } = UnicastSystem::setup(peers).await.into();
+        } = UnicastSystem::<Message>::setup(peers).await.into();
 
         let keys_table = keys.clone();
 
@@ -63,7 +63,7 @@ impl PeerSystem {
         let inlet = self.get_inlet(target);
         if let Some(inlet) = inlet {
             tokio::spawn(async move {
-                inlet.send(command).await.unwrap();
+                inlet.send(command).await;
             });
         }
     }
@@ -82,7 +82,7 @@ mod tests {
 
     use std::time::Duration;
 
-    use crate::{system::peer_system::PeerSystem, talk::message::Message};
+    use crate::{system::peer_system::PeerSystem, talk::Message};
 
     use super::*;
 

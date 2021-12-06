@@ -7,8 +7,8 @@ use super::PeerId;
 use super::*;
 use crate::crypto::identity_table::IdentityTable;
 use crate::settings::RunnerSettings as Settings;
-use crate::talk::feedback::{Feedback, Result};
-use crate::{talk::command::Command, talk::message::Message};
+use crate::talk::FeedbackSender;
+use crate::talk::{Message, Command, Feedback};
 use talk::crypto::Identity;
 use tokio::time::sleep;
 /// A client is a peer that has a defined behavior in the system
@@ -33,6 +33,7 @@ impl Client {
         loop {
             tokio::select! {
                 (id, message, _) = self.runner.peer.receiver.receive() => {
+                    self.runner.simulate_delay().await;
                     self.handle_message(id, message).await;
                 }
 
@@ -46,68 +47,82 @@ impl Client {
     async fn handle_command(&mut self, command: Command) {
         match command {
             Command::Execute(message, id, tx) => {
-                if self.database.request.contains_key(&id) {
-                    let _ = tx.send(Feedback::Error(String::from(
-                        "The message has already been sent",
-                    )));
-                } else {
-                    let replicas = self.identity_table.replicas().iter();
-                    for replica_id in replicas {
-                        self.runner.peer.sender.spawn_send(
-                            replica_id.clone(),
-                            message.clone(),
-                            &self.runner.fuse,
-                        );
-                    }
-                    self.database.request.insert(id, HashMap::new());
-                }
+                self.handle_command_execute(message, &id, tx)
                 //todo!("Implement the wait until, and return a res");
             }
             Command::Testing(sender) => {
-                println!("Client #{} starts testing...", self.id());
-                for client in self.identity_table.clients().iter() {
-                    self.send(client, Message::Testing);
-                }
-                for replica in self.identity_table.replicas() {
-                    self.send(replica, Message::Testing);
-                }
-                if let Some(rx) = sender {
-                    let _ = rx.send(Command::Answer);
-                }
-            }
-            Command::AskStatus(message, rx) => {
-                let res = self.database.received.get(&message);
-                let res = res.map(|x| Result::new(*x));
-                let _ = rx.send(Feedback::Res(res));
+                self.handle_command_testing(sender)
             }
             _ => {}
         }
     }
 
-    async fn handle_message(&mut self, _id: Identity, message: Message) {
+    async fn handle_message(&mut self, _id: Identity, message: Message){
         match message {
             Message::Testing => {
-                println!("Client #{} receives the test", self.id());
-                let db = &mut self.database.received;
-                db.insert(
-                    message.clone(),
-                    if db.contains_key(&message) {
-                        db.get(&message).unwrap() + 1
-                    } else {
-                        1
-                    },
-                );
+                self.handle_message_testing(&message);
             }
             Message::ACK(id, res) => {
-                (id, res);
+                if let Some(mut key) = self.database.request.get(&id)  {
+                    ()
+                } else {
+                    // Returns an error
+                }
             }
             _ => {}
         }
     }
 
-    async fn wait_for_replicas() -> u64 {
-        sleep(Duration::from_secs(10)).await;
-        2
+
+    /// Handling command functions
+
+    fn handle_command_execute(&mut self, message: Message, id: &RequestId, tx: FeedbackSender) {
+        if self.database.request.contains_key(&id) {
+            let _ = tx.send_feedback(Feedback::Error(String::from(
+                "The message has already been sent",
+            )),
+            &self.runner.fuse);
+        } else {
+            let replicas = self.identity_table.replicas().iter();
+            for replica_id in replicas {
+                self.runner.peer.sender.spawn_send(
+                    replica_id.clone(),
+                    message.clone(),
+                    &self.runner.fuse,
+                );
+            }
+            self.database.request.insert(id.clone(), MessageResultDatabase::new(tx));
+        }
+    }
+
+
+    fn handle_command_testing(&mut self, sender: Option<OneShotSender<Command>>) {
+        println!("Client #{} starts testing...", self.id());
+        for client in self.identity_table.clients().iter() {
+            self.send(client, Message::Testing);
+        }
+        for replica in self.identity_table.replicas() {
+            self.send(replica, Message::Testing);
+        }
+        if let Some(rx) = sender {
+            let _ = rx.send(Command::Answer);
+        }
+    }
+
+
+    /// Handling messages functions
+
+    fn handle_message_testing(&mut self, message: &Message) {
+        println!("Client #{} receives the test", self.id());
+        let db = &mut self.database.received;
+        db.insert(
+            message.clone(),
+            if db.contains_key(&message) {
+                db.get(&message).unwrap() + 1
+            } else {
+                1
+            },
+        );
     }
 }
 
@@ -130,7 +145,7 @@ mod tests {
 
     use uuid::Uuid;
 
-    use crate::talk::{command::Command, message::Message};
+    use crate::talk::{Command, Message};
 
     #[test]
     fn equality_for_enum() {
