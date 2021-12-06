@@ -1,10 +1,17 @@
+
+use std::fmt::Error;
+
 use crate::system::PeerId;
 use crate::talk::Command;
+use crate::talk::FeedbackChannel;
+use crate::talk::FeedbackReceiver;
 use talk::sync::fuse::Fuse;
 use talk::unicast::test::UnicastSystem;
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::Receiver as MPSCReceiver;
 use tokio::sync::mpsc::Sender as MPSCSender;
+use tokio::task::JoinError;
+use tokio::task::JoinHandle;
 
 use super::*;
 
@@ -14,10 +21,10 @@ impl PeerSystem {
     ///
     /// The system of peers has size [`peers`]
     pub async fn setup(peers: usize) -> Self {
-        let mut inlets: Vec<MPSCSender<Command>> = Vec::new();
-        let mut outlets: Vec<MPSCReceiver<Command>> = Vec::new();
+        let mut inlets: Vec<InstructionSender> = Vec::new();
+        let mut outlets: Vec<InstructionReceiver> = Vec::new();
         for _ in 0..peers {
-            let (tx, rx) = mpsc::channel::<Command>(32);
+            let (tx, rx) = mpsc::channel::<Instruction>(32);
             inlets.push(tx);
             outlets.push(rx);
         }
@@ -59,15 +66,28 @@ impl PeerSystem {
         }
     }
 
-    pub async fn send_command(&self, command: Command, target: PeerId) {
+    pub async fn send_instruction(&self, instruction: Instruction, target: PeerId) -> Option<JoinHandle<()>> {
         let inlet = self.get_inlet(target);
         if let Some(inlet) = inlet {
-            tokio::spawn(async move {
-                inlet.send(command).await;
+            let res = tokio::spawn(async move {
+                inlet.send(instruction).await;
             });
+            return Some(res);
         }
+        None
     }
-    fn get_inlet(&self, target: PeerId) -> Option<MPSCSender<Command>> {
+
+    /// Send a command
+    /// The feedback channel is created internally. The receiver endpoint is returned by the function
+    pub async fn send_command(&self, command: Command, target: PeerId) -> Option<FeedbackReceiver> {
+        let (tx, rx) = FeedbackChannel::channel();
+        if let Some(handle) = self.send_instruction((command, tx), target).await {
+            return Some(rx);
+        }
+        None
+    }
+
+    fn get_inlet(&self, target: PeerId) -> Option<InstructionSender> {
         if target < self.size {
             if let Some(inlet) = self.runner_inlets.get(target) {
                 return Some(inlet.clone());
@@ -82,7 +102,7 @@ mod tests {
 
     use std::time::Duration;
 
-    use crate::{system::peer_system::PeerSystem, talk::Message};
+    use crate::{system::peer_system::PeerSystem, talk::{Message, FeedbackChannel}};
 
     use super::*;
 
@@ -90,9 +110,10 @@ mod tests {
     async fn basic_setup() {
         let system: PeerSystem = PeerSystem::setup(3).await.into();
 
-        let inlet: MPSCSender<Command> = system.get_inlet(0).unwrap();
+        let inlet: InstructionSender = system.get_inlet(0).unwrap();
         let value: Command = Command::Send(1, Message::Plaintext(String::from("Hello")));
-        let _ = inlet.send(value).await;
+        let (rx, tx) = FeedbackChannel::channel();
+        let _ = inlet.send((value, rx)).await;
         tokio::time::sleep(Duration::from_secs(10)).await;
         println!("____________________ END ________________");
         println!("Expected result: \n   Got: Hello");

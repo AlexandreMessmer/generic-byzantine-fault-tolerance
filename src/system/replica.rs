@@ -29,16 +29,16 @@ impl Replica {
                     self.handle_message(id, message).await;
                 }
 
-                Some(command) = self.runner.outlet.recv() => {
-                    self.handle_command(command).await;
+                Some(instruction) = self.runner.outlet.recv() => {
+                    self.handle_command(instruction).await;
                 }
             }
         }
     }
 
-    async fn handle_command(&mut self, command: Command) {
-        match command {
-            Command::Testing(sender) => {
+    async fn handle_command(&mut self, instruction: Instruction) {
+        match instruction {
+            (Command::Testing(sender), _) => {
                 println!("Replica #{} starts testing...", self.id());
                 for client in self.identity_table.clients().iter() {
                     self.send(client, Message::Testing);

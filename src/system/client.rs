@@ -37,20 +37,20 @@ impl Client {
                     self.handle_message(id, message).await;
                 }
 
-                Some(command) = self.runner.outlet.recv() => {
-                    self.handle_command(command).await;
+                Some(instruction) = self.runner.outlet.recv() => {
+                    self.handle_command(instruction).await;
                 }
             }
         }
     }
 
-    async fn handle_command(&mut self, command: Command) {
-        match command {
-            Command::Execute(message, id, tx) => {
+    async fn handle_command(&mut self, instruction: Instruction) {
+        match instruction {
+            (Command::Execute(message, id), tx) => {
                 self.handle_command_execute(message, &id, tx)
                 //todo!("Implement the wait until, and return a res");
             }
-            Command::Testing(sender) => {
+            (Command::Testing(sender), _) => {
                 self.handle_command_testing(sender)
             }
             _ => {}

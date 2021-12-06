@@ -79,7 +79,7 @@ use tokio::sync::mpsc::Sender as MPSCSender;
 
 pub struct PeerRunner {
     peer: Peer,
-    outlet: MPSCReceiver<Command>,
+    outlet: InstructionReceiver,
     keys_table: Vec<Identity>,
     fuse: Fuse,
     settings: RunnerSettings,
@@ -93,6 +93,6 @@ pub struct PeerRunner {
 /// The index of each peer runner inlet is the id of the peer, from 0 to size (excluded)
 pub struct PeerSystem {
     size: usize,
-    runner_inlets: Vec<MPSCSender<Command>>,
+    runner_inlets: Vec<InstructionSender>,
     fuse: Fuse,
 }

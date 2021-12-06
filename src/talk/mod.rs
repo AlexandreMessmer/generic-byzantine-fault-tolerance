@@ -11,7 +11,7 @@ pub type RequestId = Uuid;
 pub type Instruction = (Command, FeedbackSender);
 pub enum Command {
     Send(usize, Message),
-    Execute(Message, RequestId, FeedbackSender),
+    Execute(Message, RequestId),
     Testing(Option<OneshotSender<Command>>), // Only for testing purposes
     AskStatus(Message, FeedbackSender),
     Answer,

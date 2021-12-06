@@ -13,7 +13,7 @@ use crate::talk::Message::{self, Plaintext};
 impl PeerRunner {
     pub(in crate::system) fn new(
         peer: Peer,
-        outlet: MPSCReceiver<Command>,
+        outlet: InstructionReceiver,
         keys_table: Vec<Identity>,
         settings: RunnerSettings,
     ) -> Self {
@@ -34,16 +34,16 @@ impl PeerRunner {
                     self.handle_message(id, message).await;
                 }
 
-                Some(command) = self.outlet.recv() => {
-                    self.handle_command(command).await;
+                Some(instruction) = self.outlet.recv() => {
+                    self.handle_command(instruction).await;
                 }
             }
         }
     }
 
-    async fn handle_command(&mut self, command: Command) {
-        match command {
-            Command::Send(id, message) => {
+    async fn handle_command(&mut self, instruction: Instruction) {
+        match instruction {
+            (Command::Send(id, message), _) => {
                 println!("Peer #{} forwarded: {:?}", self.peer.id, message);
                 self.simulate_busy().await;
                 if id < self.keys_table.len() {
@@ -72,7 +72,7 @@ impl PeerRunner {
         keys: Vec<Identity>,
         senders: Vec<Sender>,
         receivers: Vec<Receiver>,
-        outlets: Vec<MPSCReceiver<Command>>,
+        outlets: Vec<InstructionReceiver>,
         keys_table: Vec<Identity>,
         settings: RunnerSettings,
     ) -> Vec<PeerRunner> {

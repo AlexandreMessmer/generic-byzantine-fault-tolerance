@@ -1,13 +1,17 @@
+use futures::{Future, future};
+use tokio::runtime::Runtime;
+
 use super::*;
-pub struct FeedbackChannel {}
+
 impl FeedbackChannel {
-    pub async fn channel() -> (FeedbackSender, FeedbackReceiver) {
+    pub fn channel() -> (FeedbackSender, FeedbackReceiver) {
+        let singleton = UnicastSystem::setup(1);
+        let singleton = futures::executor::block_on(singleton);
         let UnicastSystem {
             mut keys,
             mut senders,
             mut receivers,
-        } = UnicastSystem::setup(1).await.into();
-
+        } = singleton;
         let sender = FeedbackSender {
             id: keys.remove(0),
             sender: senders.remove(0),
