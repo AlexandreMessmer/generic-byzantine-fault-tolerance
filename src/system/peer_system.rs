@@ -9,7 +9,6 @@ use tokio::sync::mpsc::Receiver as MPSCReceiver;
 use tokio::sync::mpsc::Sender as MPSCSender;
 use tokio::task::JoinError;
 use tokio::task::JoinHandle;
-
 use super::*;
 
 impl PeerSystem {
