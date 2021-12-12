@@ -1,26 +1,45 @@
-use futures::{Future, future};
+use std::time::Duration;
+
+use futures::FutureExt;
 use tokio::runtime::Runtime;
 
 use super::*;
 
 impl FeedbackChannel {
-    pub fn channel() -> (FeedbackSender, FeedbackReceiver) {
-        let singleton = UnicastSystem::setup(1);
-        let singleton = futures::executor::block_on(singleton);
+    pub async fn channel() -> (FeedbackSender, FeedbackReceiver) {
         let UnicastSystem {
             mut keys,
             mut senders,
             mut receivers,
-        } = singleton;
-        let sender = FeedbackSender {
-            id: keys.remove(0),
-            sender: senders.remove(0),
+        } = UnicastSystem::<Feedback>::setup(1).await.into();
+        let key = keys.pop().unwrap();
+        let sender = senders.pop().unwrap();
+        let receiver = receivers.pop().unwrap();
+        let fb_sender = FeedbackSender {
+            id: key,
+            sender,
+            fuse: Fuse::new(),
         };
+        let fb_receiver = FeedbackReceiver { receiver: receiver };
+        (fb_sender, fb_receiver)
+    }
+}
 
-        let receiver = FeedbackReceiver {
-            receiver: receivers.remove(0),
-        };
+#[cfg(test)]
+pub mod tests {
+    use std::time::Duration;
 
-        (sender, receiver)
+    use talk::sync::fuse::Fuse;
+
+    use super::*;
+    use crate::talk::FeedbackChannel;
+    #[tokio::test]
+    async fn channel_feedback() {
+        let (tx, mut rx) = FeedbackChannel::channel().await;
+        let sent = Feedback::Error(String::from("Test"));
+        let s1 = sent.clone();
+        tx.send_feedback(s1);
+        let feedback = rx.receive_feedback().await;
+        assert_eq!(feedback, sent);
     }
 }

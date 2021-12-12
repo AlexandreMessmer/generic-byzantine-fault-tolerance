@@ -1,20 +1,21 @@
+use crate::{
+    crypto::identity_table::IdentityTable,
+    system::{Peer, PeerId},
+    talk::{Command, FeedbackChannel, FeedbackReceiver, Message},
+};
 
-use crate::crypto::identity_table::IdentityTable;
-use crate::system::{Peer, PeerId};
-use crate::talk::{Command, Message, FeedbackReceiver, FeedbackChannel};
 use talk::crypto::Identity;
 use talk::sync::fuse::Fuse;
 use talk::unicast::test::UnicastSystem;
-use tokio::sync::{mpsc, oneshot};
+
 use tokio::sync::mpsc::Receiver as MPSCReceiver;
 use tokio::sync::mpsc::Sender as MPSCSender;
+use tokio::sync::{mpsc, oneshot};
 use tokio::task::JoinHandle;
 
-use super::client::Client;
-use super::replica::Replica;
-use super::*;
-use super::{PeerIdentifier, PeerType};
 use crate::settings::{RunnerSettings, SystemSettings as Settings};
+
+use super::*;
 
 /// Use a PeerSystem as model.
 pub struct ByzantineSystem {
@@ -98,15 +99,24 @@ impl ByzantineSystem {
     }
 
     /// Abstract the creation of a feedback channel
-    pub fn send_command(&self, command: Command, (kind, id): PeerIdentifier) -> Option<FeedbackReceiver> {
-        let (tx, rx) = FeedbackChannel::channel();
+    /// Returns None if something failed
+    pub async fn send_command(
+        &self,
+        command: Command,
+        (kind, id): PeerIdentifier,
+    ) -> Option<FeedbackReceiver> {
+        let (tx, rx) = FeedbackChannel::channel().await;
         if let Some(_) = self.send_instruction((command, tx), (kind, id)) {
             return Some(rx);
         }
         None
     }
 
-    fn send_instruction(&self, instruction: Instruction, (kind, id): PeerIdentifier) -> Option<JoinHandle<Option<()>>> {
+    fn send_instruction(
+        &self,
+        instruction: Instruction,
+        (kind, id): PeerIdentifier,
+    ) -> Option<JoinHandle<Option<()>>> {
         let inlet = match kind {
             PeerType::Client => self.client_inlet(id),
             PeerType::Replica => self.replica_inlet(id),
@@ -121,7 +131,6 @@ impl ByzantineSystem {
         None
     }
 
-
     fn client_inlet(&self, target: PeerId) -> Option<InstructionSender> {
         ByzantineSystem::find_inlet(target, &self.client_inlets)
     }
@@ -130,10 +139,7 @@ impl ByzantineSystem {
         ByzantineSystem::find_inlet(target, &self.replica_inlets)
     }
 
-    fn find_inlet(
-        target: PeerId,
-        inlets: &Vec<InstructionSender>,
-    ) -> Option<InstructionSender> {
+    fn find_inlet(target: PeerId, inlets: &Vec<InstructionSender>) -> Option<InstructionSender> {
         if target < inlets.len() {
             return Some(inlets.get(target).unwrap().clone());
         }
@@ -156,8 +162,6 @@ impl ByzantineSystem {
     pub fn settings(&self) -> Settings {
         self.settings.clone()
     }
-
-
 }
 
 #[cfg(test)]
@@ -220,11 +224,10 @@ mod tests {
         for i in 0..4 {
             let _ = system.send_command(Command::Testing(None), (PeerType::Client, i));
         }
-
     }
 
     #[tokio::test]
-    async fn broadcast_test(){
+    async fn broadcast_test() {
         let fuse = Fuse::new();
         for _ in 0..10 {
             fuse.spawn(async move {
@@ -232,6 +235,4 @@ mod tests {
             });
         }
     }
-
-
 }

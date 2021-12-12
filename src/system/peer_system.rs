@@ -1,10 +1,7 @@
-
-use std::fmt::Error;
-
-use crate::system::PeerId;
 use crate::talk::Command;
 use crate::talk::FeedbackChannel;
 use crate::talk::FeedbackReceiver;
+use std::fmt::Error;
 use talk::sync::fuse::Fuse;
 use talk::unicast::test::UnicastSystem;
 use tokio::sync::mpsc;
@@ -66,7 +63,11 @@ impl PeerSystem {
         }
     }
 
-    pub async fn send_instruction(&self, instruction: Instruction, target: PeerId) -> Option<JoinHandle<()>> {
+    pub async fn send_instruction(
+        &self,
+        instruction: Instruction,
+        target: PeerId,
+    ) -> Option<JoinHandle<()>> {
         let inlet = self.get_inlet(target);
         if let Some(inlet) = inlet {
             let res = tokio::spawn(async move {
@@ -80,7 +81,7 @@ impl PeerSystem {
     /// Send a command
     /// The feedback channel is created internally. The receiver endpoint is returned by the function
     pub async fn send_command(&self, command: Command, target: PeerId) -> Option<FeedbackReceiver> {
-        let (tx, rx) = FeedbackChannel::channel();
+        let (tx, rx) = FeedbackChannel::channel().await;
         if let Some(handle) = self.send_instruction((command, tx), target).await {
             return Some(rx);
         }
@@ -102,7 +103,10 @@ mod tests {
 
     use std::time::Duration;
 
-    use crate::{system::peer_system::PeerSystem, talk::{Message, FeedbackChannel}};
+    use crate::{
+        system::peer_system::PeerSystem,
+        talk::{FeedbackChannel, Message},
+    };
 
     use super::*;
 
@@ -112,7 +116,7 @@ mod tests {
 
         let inlet: InstructionSender = system.get_inlet(0).unwrap();
         let value: Command = Command::Send(1, Message::Plaintext(String::from("Hello")));
-        let (rx, tx) = FeedbackChannel::channel();
+        let (rx, tx) = FeedbackChannel::channel().await;
         let _ = inlet.send((value, rx)).await;
         tokio::time::sleep(Duration::from_secs(10)).await;
         println!("____________________ END ________________");

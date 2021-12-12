@@ -1,6 +1,9 @@
 use tokio::{sync::mpsc::Sender, time::Duration};
 
-use genericbft::{system::{byzantine_system::ByzantineSystem, PeerType}, talk::Command};
+use genericbft::{
+    system::{byzantine_system::ByzantineSystem, PeerType},
+    talk::Command,
+};
 use tokio::time::sleep;
 
 #[tokio::main]

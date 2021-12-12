@@ -1,12 +1,12 @@
-use serde::{Serialize, Deserialize};
-use talk::{crypto::Identity, unicast::{test::UnicastSystem, }, sync::fuse::Fuse};
-use tokio::{sync::oneshot::Sender as OneshotSender};
-use talk::unicast::{Sender as TalkSender, Receiver as TalkReceiver};
+use serde::{Deserialize, Serialize};
+use talk::unicast::{Receiver as TalkReceiver, Sender as TalkSender};
+use talk::{crypto::Identity, sync::fuse::Fuse, unicast::test::UnicastSystem};
+use tokio::sync::oneshot::Sender as OneshotSender;
 use uuid::Uuid;
 
 pub mod feedback_channel;
-pub mod feedback_sender;
 pub mod feedback_receiver;
+pub mod feedback_sender;
 pub type RequestId = Uuid;
 pub type Instruction = (Command, FeedbackSender);
 pub enum Command {
@@ -28,23 +28,24 @@ pub enum Message {
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
-pub enum Feedback{
+pub enum Feedback {
     Error(String),
     Acknowledgement,
     Res(Option<MessageResult>),
 }
 
-
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
 pub struct MessageResult {}
 
-pub struct FeedbackReceiver {
-    receiver: TalkReceiver<Feedback>,
-}
+#[derive(Debug)]
+pub struct FeedbackChannel {}
 
 pub struct FeedbackSender {
     id: Identity,
     sender: TalkSender<Feedback>,
+    fuse: Fuse,
 }
 
-pub struct FeedbackChannel {}
+pub struct FeedbackReceiver {
+    receiver: TalkReceiver<Feedback>,
+}
