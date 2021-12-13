@@ -13,20 +13,20 @@ use talk::unicast::test::UnicastSystem;
 use tokio::sync::{mpsc};
 use tokio::task::JoinHandle;
 
-use crate::settings::{RunnerSettings, SystemSettings as Settings};
+use crate::settings::{RunnerSettings, SystemSettings};
 
 use super::*;
 
 /// Use a PeerSystem as model.
 pub struct ByzantineSystem {
-    settings: Settings,
+    settings: SystemSettings,
     client_inlets: Vec<InstructionSender>,
     replica_inlets: Vec<InstructionSender>,
     fuse: Fuse,
 }
 
 impl ByzantineSystem {
-    pub async fn setup(nbr_clients: usize, nbr_replicas: usize) -> Self {
+    pub async fn setup(nbr_clients: usize, nbr_replicas: usize, system_settings: SystemSettings) -> Self {
         let (client_inlets, client_outlets) = ByzantineSystem::create_channels(nbr_clients);
         let (replica_inlets, replica_outlets) = ByzantineSystem::create_channels(nbr_replicas);
 
@@ -47,7 +47,6 @@ impl ByzantineSystem {
         }
 
         let identity_table = IdentityTable::new(keys.clone(), replica_keys.clone());
-        let system_settings = Settings::default_settings(nbr_clients, nbr_replicas);
         let clients: Vec<Client> = PeerRunner::compose_runners(
             nbr_clients,
             keys,
@@ -98,6 +97,9 @@ impl ByzantineSystem {
         }
     }
 
+    pub async fn default_setup(nbr_clients: usize, nbr_replicas: usize) -> Self {
+        Self::setup(nbr_clients, nbr_replicas, SystemSettings::default_settings(nbr_clients, nbr_replicas)).await
+    }
     /// Abstract the creation of a feedback channel
     /// Returns None if something failed
     pub async fn send_command(
@@ -131,6 +133,15 @@ impl ByzantineSystem {
         None
     }
 
+    pub fn wait_until_down() -> () {
+        loop {
+            let random = rand::random::<i32>();
+            if random == 0 {
+                break;
+            }
+        }
+    }
+
     fn client_inlet(&self, target: PeerId) -> Option<InstructionSender> {
         ByzantineSystem::find_inlet(target, &self.client_inlets)
     }
@@ -159,7 +170,7 @@ impl ByzantineSystem {
         (inlets, outlets)
     }
 
-    pub fn settings(&self) -> Settings {
+    pub fn settings(&self) -> SystemSettings {
         self.settings.clone()
     }
 }
@@ -169,8 +180,6 @@ mod tests {
     use std::time::Duration;
 
     use tokio::sync::oneshot::{self};
-
-    
 
     use super::*;
 
@@ -184,7 +193,7 @@ mod tests {
 
     #[tokio::test]
     async fn client_should_answer_command_1() {
-        let system: ByzantineSystem = ByzantineSystem::setup(4, 0).await.into();
+        let system: ByzantineSystem = ByzantineSystem::default_setup(4, 0).await.into();
         let (tx, rx) = oneshot::channel::<Command>();
         system.send_command(Command::Testing(None), (PeerType::Client, 0));
         system.send_command(Command::Testing(None), (PeerType::Client, 1));
@@ -200,7 +209,7 @@ mod tests {
 
     #[tokio::test]
     async fn client_should_answer_command_2() {
-        let system: ByzantineSystem = ByzantineSystem::setup(2, 2).await.into();
+        let system: ByzantineSystem = ByzantineSystem::default_setup(2, 2).await.into();
         let (tx1, rx1) = oneshot::channel::<Command>();
         let (tx2, rx2) = oneshot::channel::<Command>();
         let _ = system.send_command(Command::Testing(Some(tx1)), (PeerType::Client, 0));
@@ -220,9 +229,11 @@ mod tests {
 
     #[tokio::test]
     async fn client_database_registers_correctly() {
-        let system: ByzantineSystem = ByzantineSystem::setup(4, 0).await.into();
-        for i in 0..4 {
-            let _ = system.send_command(Command::Testing(None), (PeerType::Client, i));
+        let system: ByzantineSystem = ByzantineSystem::default_setup(4, 4).await.into();
+        system.send_command(Command::Testing(None), (PeerType::Client, 0)).await;
+
+        loop {
+            tokio::time::sleep(Duration::from_millis(10)).await;
         }
     }
 
@@ -234,5 +245,12 @@ mod tests {
                 tokio::time::sleep(Duration::from_secs(10)).await;
             });
         }
+    }
+
+    #[tokio::test]
+    async fn execute_command_test(){
+        let system: ByzantineSystem = ByzantineSystem::default_setup(4, 4).await.into();
+        system.send_command(Command::execute(Message::Testing), (PeerType::Client, 0)).await;
+        tokio::time::sleep(Duration::from_secs(2)).await;
     }
 }

@@ -24,18 +24,17 @@ impl Replica {
         loop {
             tokio::select! {
                 (id, message, _) = self.runner.peer.receiver.receive() => {
-                    println!("Received something");
                     self.handle_message(id, message).await;
                 }
 
                 Some(instruction) = self.runner.outlet.recv() => {
-                    self.handle_command(instruction).await;
+                    self.handle_instruction(instruction).await;
                 }
             }
         }
     }
 
-    async fn handle_command(&mut self, instruction: Instruction) {
+    async fn handle_instruction(&mut self, instruction: Instruction) {
         match instruction {
             (Command::Testing(sender), _) => {
                 println!("Replica #{} starts testing...", self.id());

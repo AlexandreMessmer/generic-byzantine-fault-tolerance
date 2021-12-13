@@ -16,6 +16,12 @@ pub enum Command {
     AskStatus(Message, FeedbackSender),
     Answer,
 }
+impl Command {
+    pub fn execute(message: Message) -> Command {
+        let id = Uuid::new_v4();
+        Command::Execute(message, id)
+    }
+}
 
 pub type RoundNumber = usize;
 /// Peers exchange Message.
@@ -32,7 +38,7 @@ pub enum Message {
 pub enum Feedback {
     Error(String),
     Acknowledgement,
-    Res(Option<MessageResult>),
+    Result(MessageResult),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
