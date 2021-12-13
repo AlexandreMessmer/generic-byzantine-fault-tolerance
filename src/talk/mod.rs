@@ -17,14 +17,15 @@ pub enum Command {
     Answer,
 }
 
+pub type RoundNumber = usize;
 /// Peers exchange Message.
 /// This is defined to work for talk unicast systems.
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]
 pub enum Message {
     Plaintext(String),
     Testing, // Only for debugging/testing purposes
-    ACK(RequestId, MessageResult),
-    CHK(RequestId),
+    ACK(RequestId, MessageResult, RoundNumber),
+    CHK(RequestId, MessageResult, RoundNumber),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]

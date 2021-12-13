@@ -1,10 +1,15 @@
+use std::sync::Arc;
+
 use super::PeerId;
 use super::*;
 use crate::crypto::identity_table::IdentityTable;
 use crate::database::Database;
-use crate::talk::FeedbackSender;
+use crate::talk::{FeedbackSender, Feedback, MessageResult};
 use crate::talk::{Command, Message};
+use futures::TryFutureExt;
 use talk::crypto::Identity;
+use talk::unicast::{Acknowledgement, SenderError};
+use tokio::task::JoinHandle;
 /// A client is a peer that has a defined behavior in the system
 /// Formally, it is a client runner. To make it easier, we will
 /// define the client as the same entity as its runner
@@ -55,8 +60,11 @@ impl Client {
             Message::Testing => {
                 self.handle_message_testing(&message);
             }
-            Message::ACK(id, _) => {
-                self.database.update_request(id, message);
+            Message::ACK(id, _, _) => {
+                self.handle_request_answer(id, clone, self.runner.settings.n_ack())
+            }
+            Message::CHK(id, _, _) => {
+                self.handle_request_answer(id, clone, self.runner.settings.nbr_byzantine())
             }
             _ => {}
         }
@@ -65,7 +73,13 @@ impl Client {
     /// Handling command functions
 
     fn handle_command_execute(&mut self, message: Message, id: &RequestId, tx: FeedbackSender) {
-        //self.database.
+        // Do not execute if there is a db error
+        if self.database.contains_request(id) {
+            tx.send_feedback(Feedback::Error(String::from("Request id already exists")));
+        } else {
+            self.database.add_request(id.clone(), tx).unwrap();
+            self.broadast_to_replicas(&message);
+        }
     }
 
     fn handle_command_testing(&mut self, sender: Option<OneShotSender<Command>>) {
@@ -83,12 +97,30 @@ impl Client {
 
     /// Handling messages functions
 
+    fn handle_request_answer(&mut self, id: RequestId, message: Message, bound: usize) {
+        let count = self.database
+            .update_request(id.clone(), message.clone())
+            .unwrap();
+        if let Some(nbr) = count {
+            if nbr >= bound - 1 {
+                let completion_result = self.database
+                    .complete_request(&id);
+                
+            }
+        }
+    }
     fn handle_message_testing(&mut self, message: &Message) {
         println!(
             "Client #{} receives {:?} during the test",
             self.id(),
             message
         );
+    }
+
+    fn broadast_to_replicas(&self, message: &Message) {
+        for replica in self.identity_table.replicas() {
+            self.send(replica, message.clone());
+        }
     }
 }
 
@@ -108,10 +140,9 @@ impl Runner for Client {
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
+    use crate::talk::{Message};
 
-    use uuid::Uuid;
-
-    use crate::talk::{Command, Message};
+    use super::*;
 
     #[test]
     fn equality_for_enum() {
@@ -122,4 +153,5 @@ mod tests {
         assert_eq!(e1 == e2, true);
         assert_eq!(db.contains_key(&e2), true);
     }
+
 }

@@ -1,6 +1,6 @@
 use crate::{
     crypto::identity_table::IdentityTable,
-    system::{Peer, PeerId},
+    system::{PeerId},
     talk::{Command, FeedbackChannel, FeedbackReceiver, Message},
 };
 
@@ -8,9 +8,9 @@ use talk::crypto::Identity;
 use talk::sync::fuse::Fuse;
 use talk::unicast::test::UnicastSystem;
 
-use tokio::sync::mpsc::Receiver as MPSCReceiver;
-use tokio::sync::mpsc::Sender as MPSCSender;
-use tokio::sync::{mpsc, oneshot};
+
+
+use tokio::sync::{mpsc};
 use tokio::task::JoinHandle;
 
 use crate::settings::{RunnerSettings, SystemSettings as Settings};
@@ -168,9 +168,9 @@ impl ByzantineSystem {
 mod tests {
     use std::time::Duration;
 
-    use tokio::sync::oneshot::{self, Receiver, Sender};
+    use tokio::sync::oneshot::{self};
 
-    use crate::{system, talk::Feedback};
+    
 
     use super::*;
 

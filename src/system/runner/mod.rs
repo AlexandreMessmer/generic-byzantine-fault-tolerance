@@ -31,6 +31,8 @@ pub struct PeerRunner {
     settings: RunnerSettings,
 }
 
+/// Defines the API of a Runner
+/// Note that it should also implements an async method run()
 pub trait Runner {
     fn send(&self, target: &Identity, message: Message);
     fn id(&self) -> PeerId;

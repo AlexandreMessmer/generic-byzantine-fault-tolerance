@@ -18,4 +18,12 @@ impl RunnerSettings {
     pub fn transmission_delay(&self) -> Duration {
         self.transmission_delay.clone()
     }
+
+    pub fn n_ack(&self) -> usize {
+        self.n_ack
+    }
+
+    pub fn nbr_byzantine(&self) -> usize{
+        todo!();
+    }
 }

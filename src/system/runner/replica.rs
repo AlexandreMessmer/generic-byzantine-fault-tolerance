@@ -55,6 +55,9 @@ impl Replica {
 
     async fn handle_message(&mut self, _id: Identity, message: Message) {
         match message {
+            Message::Testing => {
+                println!("Replica #{} receives the test!", self.id())
+            }
             _ => {}
         }
     }

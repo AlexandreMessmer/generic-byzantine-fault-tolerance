@@ -1,7 +1,7 @@
-use std::time::Duration;
 
-use futures::FutureExt;
-use tokio::runtime::Runtime;
+
+
+
 
 use super::*;
 
@@ -23,13 +23,11 @@ impl FeedbackChannel {
         let fb_receiver = FeedbackReceiver { receiver: receiver };
         (fb_sender, fb_receiver)
     }
+
 }
 
 #[cfg(test)]
 pub mod tests {
-    use std::time::Duration;
-
-    use talk::sync::fuse::Fuse;
 
     use super::*;
     use crate::talk::FeedbackChannel;
