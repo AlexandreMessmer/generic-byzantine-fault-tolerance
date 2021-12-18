@@ -29,21 +29,6 @@ impl Client {
         }
     }
 
-    pub async fn run(&mut self) {
-        loop {
-            tokio::select! {
-                (id, message, _) = self.runner.peer.receiver.receive() => {
-                    self.runner.simulate_delay().await;
-                    self.handle_message(id, message).await;
-                }
-
-                Some(instruction) = self.runner.outlet.recv() => {
-                    self.handle_instruction(instruction).await;
-                }
-            }
-        }
-    }
-
     async fn handle_instruction(&mut self, instruction: Instruction) {
         match instruction {
             (Command::Execute(message, id), tx) => {
@@ -135,18 +120,39 @@ impl Client {
             self.send(replica, message.clone());
         }
     }
-}
 
-impl Runner for Client {
     fn send(&self, target: &Identity, message: Message) {
         self.runner
-            .peer
-            .sender
-            .spawn_send(target.clone(), message, &self.runner.fuse);
+            .peer()
+            .spawn_send_message(target.clone(), message, &self.runner.fuse);
+    }
+}
+
+#[async_trait::async_trait]
+impl Runner for Client {
+    async fn run(&mut self) {
+        loop {
+            tokio::select! {
+                (id, message, _) = self.runner.peer.receive_message() => {
+                    self.runner.simulate_delay().await;
+                    self.handle_message(id, message).await;
+                }
+
+                Some(instruction) = self.runner.outlet.recv() => {
+                    self.handle_instruction(instruction).await;
+                }
+            }
+        }
     }
 
+    fn fuse(&self) -> &Fuse {
+        self.runner.fuse()
+    }
+}
+
+impl Identifiable for Client {
     fn id(&self) -> PeerId {
-        self.runner.peer.id
+        self.runner.id()
     }
 }
 

@@ -20,19 +20,6 @@ impl Replica {
         }
     }
 
-    pub async fn run(&mut self) {
-        loop {
-            tokio::select! {
-                (id, message, _) = self.runner.peer.receiver.receive() => {
-                    self.handle_message(id, message).await;
-                }
-
-                Some(instruction) = self.runner.outlet.recv() => {
-                    self.handle_instruction(instruction).await;
-                }
-            }
-        }
-    }
 
     async fn handle_instruction(&mut self, instruction: Instruction) {
         match instruction {
@@ -60,17 +47,37 @@ impl Replica {
             _ => {}
         }
     }
-}
 
-impl Runner for Replica {
     fn send(&self, target: &Identity, message: Message) {
         self.runner
-            .peer
-            .sender
-            .spawn_send(target.clone(), message, &self.runner.fuse);
+            .peer()
+            .spawn_send_message(target.clone(), message, self.fuse());
+    }
+}
+
+#[async_trait::async_trait]
+impl Runner for Replica {
+    async fn run(&mut self) {
+        loop {
+            tokio::select! {
+                (id, message, _) = self.runner.peer.receive_message() => {
+                    self.handle_message(id, message).await;
+                }
+
+                Some(instruction) = self.runner.outlet.recv() => {
+                    self.handle_instruction(instruction).await;
+                }
+            }
+        }
     }
 
+    fn fuse(&self) -> &Fuse {
+        self.runner.fuse()
+    }
+}
+
+impl Identifiable for Replica {
     fn id(&self) -> PeerId {
-        self.runner.peer.id
+        self.runner.id()
     }
 }

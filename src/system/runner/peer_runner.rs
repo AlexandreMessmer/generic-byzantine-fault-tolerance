@@ -22,21 +22,6 @@ impl PeerRunner {
         }
     }
 
-    pub async fn run(&mut self) {
-        loop {
-            tokio::select! {
-                (id, message, _) = self.peer.receiver.receive() => {
-                    println!("Received something");
-                    self.handle_message(id, message).await;
-                }
-
-                Some(instruction) = self.outlet.recv() => {
-                    self.handle_command(instruction).await;
-                }
-            }
-        }
-    }
-
     async fn handle_command(&mut self, instruction: Instruction) {
         match instruction {
             (Command::Send(id, message), _) => {
@@ -92,5 +77,45 @@ impl PeerRunner {
 
     pub async fn simulate_delay(&self) {
         tokio::time::sleep(self.settings.transmission_delay()).await;
+    }
+
+    pub fn peer_mut(&mut self) -> &mut Peer {
+        &mut self.peer
+    }
+
+    pub fn peer(&self) -> &Peer {
+        &self.peer
+    }
+
+    pub fn outlet(&mut self) -> &InstructionReceiver {
+        &self.outlet
+    }
+}
+
+#[async_trait::async_trait]
+impl Runner for PeerRunner {
+    async fn run(&mut self) {
+        loop {
+            tokio::select! {
+                (id, message, _) = self.peer.receive_message() => {
+                    println!("Received something");
+                    self.handle_message(id, message).await;
+                }
+
+                Some(instruction) = self.outlet.recv() => {
+                    self.handle_command(instruction).await;
+                }
+            }
+        }
+    }
+
+    fn fuse(&self) -> &Fuse {
+        &self.fuse
+    }
+}
+
+impl Identifiable for PeerRunner {
+    fn id(&self) -> PeerId {
+        self.peer.id()
     }
 }
