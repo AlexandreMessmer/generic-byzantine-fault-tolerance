@@ -10,8 +10,10 @@ use crate::{
 
 pub mod byzantine_system;
 pub mod peer_system;
+pub mod network_info;
 pub mod runner;
 pub use runner::*;
+
 
 use talk::{
     crypto::Identity,

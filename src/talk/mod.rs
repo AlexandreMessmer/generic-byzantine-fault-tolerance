@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use serde::{Deserialize, Serialize};
 use talk::unicast::{Receiver as TalkReceiver, Sender as TalkSender};
 use talk::{crypto::Identity, sync::fuse::Fuse, unicast::test::UnicastSystem};
@@ -32,6 +34,7 @@ pub enum Message {
     Testing, // Only for debugging/testing purposes
     ACK(RequestId, MessageResult, RoundNumber),
     CHK(RequestId, MessageResult, RoundNumber),
+    Broadcast(Rc<Message>)
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]

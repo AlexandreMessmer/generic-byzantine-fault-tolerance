@@ -1,9 +1,15 @@
 use std::collections::{hash_map::Entry, HashMap};
 
 use super::*;
-impl Database {
+
+
+pub struct ClientDatabase {
+    received: MessageDatabase,
+    requests: RequestDatabase,
+}
+impl ClientDatabase {
     pub fn new() -> Self {
-        Database {
+        ClientDatabase {
             received: HashMap::new(),
             requests: RequestDatabase::new(),
         }

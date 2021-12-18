@@ -1,4 +1,4 @@
-pub mod database;
+pub mod client_database;
 pub mod request_database;
 pub mod message_result_database;
 
@@ -16,10 +16,6 @@ use crate::{
 type ResultHashMap = HashMap<MessageResult, usize>;
 type MessageDatabase = HashMap<Message, usize>;
 type DatabaseResult = Result<Option<usize>, DatabaseError>;
-pub struct Database {
-    received: MessageDatabase,
-    requests: RequestDatabase,
-}
 
 
 

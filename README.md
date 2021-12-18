@@ -59,5 +59,6 @@ The more elegant way to do it is to make the receiver waits. Note that we only d
 
 
 -  Refactoring message passing: Add a `FeedbackChannel` together with a `Command` [x]
--  Define the interface for the `Database` []
+-  Define the interface for the `Database` [x]
+-  Add the faulty behavior to both replica and client. NB: We can consider that every client are not byzantine.
 

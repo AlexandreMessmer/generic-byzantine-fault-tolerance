@@ -2,12 +2,10 @@ pub mod client;
 pub mod peer;
 pub mod peer_runner;
 pub mod replica;
-pub mod handler;
 
 use super::*;
 
 pub use client::Client;
-pub use handler::Handler;
 use doomstack::Top;
 pub use replica::Replica;
 use talk::unicast::{Acknowledger, Acknowledgement, SenderError};
