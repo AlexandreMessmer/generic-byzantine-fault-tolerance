@@ -34,10 +34,8 @@ impl RequestDatabase {
         message: Message,
     ) -> Result<Option<usize>, InvalidRequest> {
         let mut res: Option<usize> = None;
-        if let Entry::Occupied(_) = self.message_results
-            .entry(request)
-            .and_modify(|db| {
-                res = db.add(message);
+        if let Entry::Occupied(_) = self.message_results.entry(request).and_modify(|db| {
+            res = db.add(message);
         }) {
             return Ok(res);
         }
@@ -47,12 +45,11 @@ impl RequestDatabase {
     pub fn remove(&mut self, request: &RequestId) -> Option<FeedbackSender> {
         self.message_results
             .remove(request)
-            .map(|v | v.feedback_inlet())
+            .map(|v| v.feedback_inlet())
     }
 
     pub fn contains(&self, request_id: &RequestId) -> bool {
-        self.message_results
-            .contains_key(request_id)
+        self.message_results.contains_key(request_id)
     }
 
     /// Returns the number of identical message received for a given request ID.
@@ -73,13 +70,13 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn global_test(){
+    async fn global_test() {
         let (tx1, _) = FeedbackChannel::channel().await;
         let (tx2, _) = FeedbackChannel::channel().await;
 
         let mut request_db = RequestDatabase::new();
         let id = new_request_id();
-        if let Err(_) = request_db.add_request(id, tx1){
+        if let Err(_) = request_db.add_request(id, tx1) {
             panic!();
         }
         if let Ok(_) = request_db.add_request(id, tx2) {
@@ -94,7 +91,6 @@ mod tests {
         if let Ok(_) = request_db.add(new_request_id(), Message::Testing) {
             panic!();
         }
-
     }
 
     fn new_request_id() -> RequestId {

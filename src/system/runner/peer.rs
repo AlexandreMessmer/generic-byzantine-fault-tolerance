@@ -1,9 +1,9 @@
 use doomstack::Top;
 use talk::{
     crypto::Identity,
-    unicast::{Receiver, Sender, Acknowledger, Acknowledgement, SenderError},
+    unicast::{Acknowledgement, Acknowledger, Receiver, Sender, SenderError},
 };
-use tokio::task::{JoinHandle};
+use tokio::task::JoinHandle;
 
 use super::*;
 use crate::talk::Message;
@@ -33,12 +33,20 @@ impl Peer {
         &self.key
     }
 
-    pub fn spawn_send(&self, remote: Identity, message: Message, fuse: &Fuse) -> JoinHandle<Option<Result<Acknowledgement, Top<SenderError>>>> {
-        self.sender
-            .spawn_send(remote, message, fuse)
+    pub fn spawn_send(
+        &self,
+        remote: Identity,
+        message: Message,
+        fuse: &Fuse,
+    ) -> JoinHandle<Option<Result<Acknowledgement, Top<SenderError>>>> {
+        self.sender.spawn_send(remote, message, fuse)
     }
 
-    pub async fn send(&self, remote: Identity, message: Message) -> Result<Acknowledgement, SenderError> {
+    pub async fn send(
+        &self,
+        remote: Identity,
+        message: Message,
+    ) -> Result<Acknowledgement, SenderError> {
         self.sender
             .send(remote, message)
             .await
@@ -48,18 +56,24 @@ impl Peer {
 
 #[async_trait::async_trait]
 impl Communicator for Peer {
-    async fn send_message(&self, remote: Identity, message: Message) -> Result<Acknowledgement, Top<SenderError>> {
-        self.sender
-            .send(remote, message)
-            .await
+    async fn send_message(
+        &self,
+        remote: Identity,
+        message: Message,
+    ) -> Result<Acknowledgement, Top<SenderError>> {
+        self.sender.send(remote, message).await
     }
     async fn receive_message(&mut self) -> (Identity, Message, Acknowledger) {
         self.receiver.receive().await
     }
 
-    fn spawn_send_message(&self, remote: Identity, message: Message, fuse: &Fuse) -> JoinHandle<Option<Result<Acknowledgement, Top<SenderError>>>> {
-        self.sender
-            .spawn_send(remote, message, fuse)
+    fn spawn_send_message(
+        &self,
+        remote: Identity,
+        message: Message,
+        fuse: &Fuse,
+    ) -> JoinHandle<Option<Result<Acknowledgement, Top<SenderError>>>> {
+        self.sender.spawn_send(remote, message, fuse)
     }
 }
 

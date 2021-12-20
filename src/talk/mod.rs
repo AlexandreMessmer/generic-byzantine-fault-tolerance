@@ -1,4 +1,5 @@
 use std::rc::Rc;
+use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use talk::unicast::{Receiver as TalkReceiver, Sender as TalkSender};
@@ -32,9 +33,9 @@ pub type RoundNumber = usize;
 pub enum Message {
     Plaintext(String),
     Testing, // Only for debugging/testing purposes
-    ACK(RequestId, MessageResult, RoundNumber),
-    CHK(RequestId, MessageResult, RoundNumber),
-    Broadcast(Rc<Message>)
+    ACK(RequestId, Arc<Message>, MessageResult, RoundNumber),
+    CHK(RequestId, Arc<Message>, MessageResult, RoundNumber),
+    Broadcast(Arc<Message>),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]

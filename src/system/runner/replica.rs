@@ -20,7 +20,6 @@ impl Replica {
         }
     }
 
-
     async fn handle_instruction(&mut self, instruction: Instruction) {
         match instruction {
             (Command::Testing(sender), _) => {

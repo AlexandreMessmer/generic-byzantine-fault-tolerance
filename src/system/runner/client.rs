@@ -3,10 +3,10 @@ use std::sync::Arc;
 use super::PeerId;
 use super::*;
 use crate::crypto::identity_table::IdentityTable;
-use crate::database::{Database, self};
+use crate::database::{self, Database};
 use crate::error::DatabaseError;
-use crate::talk::{FeedbackSender, Feedback, MessageResult};
 use crate::talk::{Command, Message};
+use crate::talk::{Feedback, FeedbackSender, MessageResult};
 use futures::TryFutureExt;
 use talk::crypto::Identity;
 use talk::unicast::{Acknowledgement, SenderError};
@@ -31,9 +31,7 @@ impl Client {
 
     async fn handle_instruction(&mut self, instruction: Instruction) {
         match instruction {
-            (Command::Execute(message, id), tx) => {
-                self.handle_command_execute(message, &id, tx)
-            }
+            (Command::Execute(message, id), tx) => self.handle_command_execute(message, &id, tx),
             (Command::Testing(sender), _) => self.handle_command_testing(sender),
             _ => {}
         }
@@ -60,9 +58,7 @@ impl Client {
     fn handle_command_execute(&mut self, message: Message, id: &RequestId, tx: FeedbackSender) {
         // Do not execute if there is a db error
         if self.database.contains_request(id) {
-            tx.send_feedback(
-                Feedback::Error(format!("Request #{} already exists", id))
-            );
+            tx.send_feedback(Feedback::Error(format!("Request #{} already exists", id)));
         } else {
             self.database.add_request(id.clone(), tx).unwrap();
             self.broadast_to_replicas(&message);
@@ -84,23 +80,29 @@ impl Client {
 
     /// Handling messages functions
 
-    fn handle_request_answer(&mut self, id: RequestId, message: Message, message_result: MessageResult, bound: usize) {
+    fn handle_request_answer(
+        &mut self,
+        id: RequestId,
+        message: Message,
+        message_result: MessageResult,
+        bound: usize,
+    ) {
         if self.database.contains_request(&id) {
-            let count = self.database
-            .update_request(id.clone(), message.clone())
-            .unwrap();
-        if let Some(nbr) = count {
-            if nbr == bound - 1 {
-                let completion_result = self.database
-                    .complete_request(&id);
-                match completion_result {
-                    Ok(feedback_sender) => {
-                        feedback_sender.send_feedback(Feedback::Result(message_result));
-                    },
-                    Err(database_error) => Self::handle_error(database_error),
+            let count = self
+                .database
+                .update_request(id.clone(), message.clone())
+                .unwrap();
+            if let Some(nbr) = count {
+                if nbr == bound - 1 {
+                    let completion_result = self.database.complete_request(&id);
+                    match completion_result {
+                        Ok(feedback_sender) => {
+                            feedback_sender.send_feedback(Feedback::Result(message_result));
+                        }
+                        Err(database_error) => Self::handle_error(database_error),
+                    }
                 }
             }
-        }
         }
     }
     fn handle_message_testing(&mut self, message: &Message) {
@@ -158,8 +160,8 @@ impl Identifiable for Client {
 
 #[cfg(test)]
 mod tests {
+    use crate::talk::Message;
     use std::collections::HashMap;
-    use crate::talk::{Message};
 
     use super::*;
 
@@ -172,5 +174,4 @@ mod tests {
         assert_eq!(e1 == e2, true);
         assert_eq!(db.contains_key(&e2), true);
     }
-
 }

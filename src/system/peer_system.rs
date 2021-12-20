@@ -6,10 +6,8 @@ use talk::sync::fuse::Fuse;
 use talk::unicast::test::UnicastSystem;
 use tokio::sync::mpsc;
 
-
-
-use tokio::task::JoinHandle;
 use super::*;
+use tokio::task::JoinHandle;
 
 impl PeerSystem {
     /// Setup a new system of peers. Each peer runs on a `PeerRunner`, that handle the incoming messages (from the runner

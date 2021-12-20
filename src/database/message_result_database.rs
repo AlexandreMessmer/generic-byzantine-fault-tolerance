@@ -32,9 +32,7 @@ impl MessageResultDatabase {
     }
 
     pub fn message_number(&self, message: &Message) -> Option<usize> {
-        self.results
-            .get(message)
-            .map(|size| size.clone())
+        self.results.get(message).map(|size| size.clone())
     }
 }
 

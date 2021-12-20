@@ -2,7 +2,6 @@ use std::collections::{hash_map::Entry, HashMap};
 
 use super::*;
 
-
 pub struct ClientDatabase {
     received: MessageDatabase,
     requests: RequestDatabase,
@@ -39,22 +38,30 @@ impl ClientDatabase {
             .map_err(|_| DatabaseError::new("Request doesn't exist"))
     }
 
-    pub fn complete_request(&mut self, request_id: &RequestId) -> Result<FeedbackSender, DatabaseError> {
+    pub fn complete_request(
+        &mut self,
+        request_id: &RequestId,
+    ) -> Result<FeedbackSender, DatabaseError> {
         self.requests
             .remove(request_id)
             .ok_or(DatabaseError::new("The request doesn't exist"))
     }
 
     pub fn contains_request(&self, request_id: &RequestId) -> bool {
-        self.requests
-            .contains(request_id)
+        self.requests.contains(request_id)
     }
 
-    pub fn is_request_completed(&self, request_id: &RequestId, message: &Message, bound: usize) -> Result<bool, DatabaseError> {
+    pub fn is_request_completed(
+        &self,
+        request_id: &RequestId,
+        message: &Message,
+        bound: usize,
+    ) -> Result<bool, DatabaseError> {
         self.requests
             .request_info(request_id, message)
             .map(|size| size >= bound)
-            .ok_or(DatabaseError::new("The request is either inexistant or unintialized"))
+            .ok_or(DatabaseError::new(
+                "The request is either inexistant or unintialized",
+            ))
     }
 }
-
