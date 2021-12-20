@@ -1,15 +1,11 @@
-
-
 use crate::{
     settings::RunnerSettings,
-    talk::{
-        Instruction, Message,
-        RequestId,
-    },
+    talk::{Instruction, Message, RequestId},
 };
 
 pub mod byzantine_system;
 pub mod peer_system;
+
 pub mod runner;
 pub use runner::*;
 

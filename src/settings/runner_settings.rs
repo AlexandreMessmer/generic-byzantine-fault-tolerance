@@ -23,7 +23,7 @@ impl RunnerSettings {
         self.n_ack
     }
 
-    pub fn nbr_byzantine(&self) -> usize{
+    pub fn nbr_byzantine(&self) -> usize {
         todo!();
     }
 }

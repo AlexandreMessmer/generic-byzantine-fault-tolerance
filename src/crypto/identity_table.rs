@@ -1,90 +1,58 @@
-use crate::system::PeerId;
-use talk::crypto::Identity;
+use std::{collections::HashMap, ops::Range};
 
-#[derive(Debug)]
+use crate::{peer::Peer, system::PeerId, network::NetworkInfo};
+use talk::{crypto::Identity, unicast::Message};
+
+#[derive(Debug, Clone)]
 pub struct IdentityTable {
     clients: Vec<Identity>,
     replicas: Vec<Identity>,
+    client_range: Range<PeerId>,
+    faulty_client_range: Range<PeerId>,
+    replica_range: Range<PeerId>,
+    faulty_replica_range: Range<PeerId>,
 }
 
 impl IdentityTable {
-    pub fn new(clients: Vec<Identity>, replicas: Vec<Identity>) -> Self {
-        IdentityTable { clients, replicas }
-    }
-
-    pub fn initiate() -> IdentityTableBuilder {
-        IdentityTableBuilder::new()
-    }
-
-    pub fn client_identity(&self, id: PeerId) -> Option<Identity> {
-        if id < self.clients.len() {
-            return Some(self.clients.get(id).unwrap().clone());
-        }
-
-        None
-    }
-
-    pub fn replica_identity(&self, id: PeerId) -> Option<Identity> {
-        if id < self.replicas.len() {
-            return Some(self.replicas.get(id).unwrap().clone());
-        }
-
-        None
+    pub fn clients(&self) -> &Vec<Identity> {
+        &self.clients()
     }
 
     pub fn replicas(&self) -> &Vec<Identity> {
-        &self.replicas
-    }
-
-    pub fn clients(&self) -> &Vec<Identity> {
-        &self.clients
-    }
-
-    pub fn nbr_clients(&self) -> usize {
-        self.clients.len()
-    }
-
-    pub fn nbr_replicas(&self) -> usize {
-        self.replicas.len()
+        &self.replicas()
     }
 }
 
 pub struct IdentityTableBuilder {
-    clients: Vec<Identity>,
-    replicas: Vec<Identity>,
+    peers_mapping: Vec<Identity>,
+    network_info: NetworkInfo,
 }
 
 impl IdentityTableBuilder {
-    fn new() -> Self {
+    pub fn new(network_info: NetworkInfo) -> Self {
         IdentityTableBuilder {
-            clients: Vec::<_>::new(),
-            replicas: Vec::<_>::new(),
+            peers_mapping: Vec::new(),
+            network_info,
         }
     }
 
-    pub fn add_client(&mut self, client: &Identity) -> &Self {
-        self.clients.push(client.clone());
-        self
-    }
-
-    pub fn add_replica(&mut self, replica: &Identity) -> &Self {
-        self.replicas.push(replica.clone());
+    pub fn add_peer(&mut self, peer: Identity) -> &Self {
+        self.peers_mapping.push(peer);
         self
     }
 
     pub fn build(self) -> IdentityTable {
+        let (client_range, faulty_client_range, replica_range, faulty_replica_range) = self.network_info.compute_ranges();
+        let (clients, replicas) = self.peers_mapping.split_at(faulty_client_range.end);
         IdentityTable {
-            clients: self.clients,
-            replicas: self.replicas,
+            clients: clients.to_vec(),
+            replicas: replicas.to_vec(),
+            client_range,
+            faulty_client_range,
+            replica_range,
+            faulty_replica_range,
         }
     }
-}
 
-impl Clone for IdentityTable {
-    fn clone(&self) -> Self {
-        Self {
-            clients: self.clients.clone(),
-            replicas: self.replicas.clone(),
-        }
-    }
+
 }

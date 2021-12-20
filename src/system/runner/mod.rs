@@ -2,15 +2,13 @@ pub mod client;
 pub mod peer;
 pub mod peer_runner;
 pub mod replica;
-pub mod handler;
 
 use super::*;
 
 pub use client::Client;
-pub use handler::Handler;
 use doomstack::Top;
 pub use replica::Replica;
-use talk::unicast::{Acknowledger, Acknowledgement, SenderError};
+use talk::unicast::{Acknowledgement, Acknowledger, SenderError};
 use tokio::task::JoinHandle;
 
 pub type PeerId = usize;
@@ -28,8 +26,7 @@ pub enum PeerType {
     Replica,
 }
 
-pub struct PeerRunner
-{
+pub struct PeerRunner {
     peer: Peer,
     outlet: InstructionReceiver,
     keys_table: Vec<Identity>,
@@ -45,17 +42,25 @@ pub trait Runner {
     fn fuse(&self) -> &Fuse;
 }
 
-
 #[async_trait::async_trait]
 pub trait Communicator {
     /// The communicator sends the message within the calling thread
-    async fn send_message(&self, remote: Identity, message: Message) -> Result<Acknowledgement, Top<SenderError>>;
+    async fn send_message(
+        &self,
+        remote: Identity,
+        message: Message,
+    ) -> Result<Acknowledgement, Top<SenderError>>;
 
     /// Block until the communicator receives the message
     async fn receive_message(&mut self) -> (Identity, Message, Acknowledger);
 
     /// The communicator sends the message in another thread.
-    fn spawn_send_message(&self, remote: Identity, message: Message, fuse: &Fuse) -> JoinHandle<Option<Result<Acknowledgement, Top<SenderError>>>>;
+    fn spawn_send_message(
+        &self,
+        remote: Identity,
+        message: Message,
+        fuse: &Fuse,
+    ) -> JoinHandle<Option<Result<Acknowledgement, Top<SenderError>>>>;
 }
 
 pub trait Identifiable {

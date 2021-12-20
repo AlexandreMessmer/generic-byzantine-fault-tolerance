@@ -1,8 +1,3 @@
-
-
-
-
-
 use super::*;
 
 impl FeedbackChannel {
@@ -23,7 +18,6 @@ impl FeedbackChannel {
         let fb_receiver = FeedbackReceiver { receiver: receiver };
         (fb_sender, fb_receiver)
     }
-
 }
 
 #[cfg(test)]

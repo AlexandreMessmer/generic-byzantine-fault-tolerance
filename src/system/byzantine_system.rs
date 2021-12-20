@@ -1,6 +1,6 @@
 use crate::{
     crypto::identity_table::IdentityTable,
-    system::{PeerId},
+    system::PeerId,
     talk::{Command, FeedbackChannel, FeedbackReceiver, Message},
 };
 
@@ -8,9 +8,7 @@ use talk::crypto::Identity;
 use talk::sync::fuse::Fuse;
 use talk::unicast::test::UnicastSystem;
 
-
-
-use tokio::sync::{mpsc};
+use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 use crate::settings::{RunnerSettings, SystemSettings};
@@ -26,7 +24,11 @@ pub struct ByzantineSystem {
 }
 
 impl ByzantineSystem {
-    pub async fn setup(nbr_clients: usize, nbr_replicas: usize, system_settings: SystemSettings) -> Self {
+    pub async fn setup(
+        nbr_clients: usize,
+        nbr_replicas: usize,
+        system_settings: SystemSettings,
+    ) -> Self {
         let (client_inlets, client_outlets) = ByzantineSystem::create_channels(nbr_clients);
         let (replica_inlets, replica_outlets) = ByzantineSystem::create_channels(nbr_replicas);
 
@@ -98,7 +100,12 @@ impl ByzantineSystem {
     }
 
     pub async fn default_setup(nbr_clients: usize, nbr_replicas: usize) -> Self {
-        Self::setup(nbr_clients, nbr_replicas, SystemSettings::default_settings(nbr_clients, nbr_replicas)).await
+        Self::setup(
+            nbr_clients,
+            nbr_replicas,
+            SystemSettings::default_settings(nbr_clients, nbr_replicas),
+        )
+        .await
     }
     /// Abstract the creation of a feedback channel
     /// Returns None if something failed
@@ -230,7 +237,9 @@ mod tests {
     #[tokio::test]
     async fn client_database_registers_correctly() {
         let system: ByzantineSystem = ByzantineSystem::default_setup(4, 4).await.into();
-        system.send_command(Command::Testing(None), (PeerType::Client, 0)).await;
+        system
+            .send_command(Command::Testing(None), (PeerType::Client, 0))
+            .await;
 
         loop {
             tokio::time::sleep(Duration::from_millis(10)).await;
@@ -248,9 +257,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn execute_command_test(){
+    async fn execute_command_test() {
         let system: ByzantineSystem = ByzantineSystem::default_setup(4, 4).await.into();
-        system.send_command(Command::execute(Message::Testing), (PeerType::Client, 0)).await;
+        system
+            .send_command(Command::execute(Message::Testing), (PeerType::Client, 0))
+            .await;
         tokio::time::sleep(Duration::from_secs(2)).await;
     }
 }
