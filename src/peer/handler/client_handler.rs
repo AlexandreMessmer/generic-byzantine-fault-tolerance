@@ -2,13 +2,11 @@ use talk::{crypto::Identity, unicast::Acknowledger};
 use tokio::sync::oneshot;
 
 use crate::{
-    crypto::identity_table::IdentityTable,
     database::client_database::ClientDatabase,
     error::DatabaseError,
     network::NetworkInfo,
-    peer::{peer::PeerId, Peer},
+    peer::{peer::PeerId},
     talk::{Command, Feedback, FeedbackSender, Instruction, Message, MessageResult, RequestId},
-    types::*,
 };
 
 use super::{Handler, PeerHandler};
@@ -95,7 +93,7 @@ impl ClientHandler {
 
     fn broadast_to_replicas(&self, message: &Message) {
         for replica in self.peer_handler.identity_table().replicas() {
-            let spawn = self
+            let _spawn = self
                 .peer_handler
                 .spawn_send(replica.clone(), message.clone());
         }
@@ -103,19 +101,19 @@ impl ClientHandler {
 }
 #[async_trait::async_trait]
 impl Handler<Message> for ClientHandler {
-    async fn handle_message(&mut self, id: Identity, message: Message, ack: Acknowledger) {
+    async fn handle_message(&mut self, _id: Identity, message: Message, _ack: Acknowledger) {
         let clone = message.clone();
         match message {
             Message::Testing => {
                 self.handle_message_testing(&message);
             }
-            Message::ACK(id, request_message, message_result, _) => self.handle_request_answer(
+            Message::ACK(id, _request_message, message_result, _) => self.handle_request_answer(
                 id,
                 clone,
                 message_result,
                 self.peer_handler.network_info().n_ack(),
             ),
-            Message::CHK(id, request_message, message_result, _) => self.handle_request_answer(
+            Message::CHK(id, _request_message, message_result, _) => self.handle_request_answer(
                 id,
                 clone,
                 message_result,

@@ -1,11 +1,9 @@
 use talk::{crypto::Identity, unicast::Acknowledger};
 
 use crate::{
-    crypto::identity_table::IdentityTable,
     network::NetworkInfo,
-    peer::{peer::PeerId, Peer},
+    peer::{peer::PeerId},
     talk::{Command, Instruction, Message},
-    types::*,
 };
 
 use super::{peer_handler::PeerHandler, Handler};
@@ -22,7 +20,7 @@ impl ReplicaHandler {
 
 #[async_trait::async_trait]
 impl Handler<Message> for ReplicaHandler {
-    async fn handle_message(&mut self, id: Identity, message: Message, ack: Acknowledger) {
+    async fn handle_message(&mut self, _id: Identity, message: Message, _ack: Acknowledger) {
         match message {
             Message::Testing => {
                 println!("Replica #{} receives the test!", self.peer_handler.id())

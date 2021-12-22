@@ -1,7 +1,6 @@
 use crate::{
     crypto::identity_table::IdentityTable,
     network::{NetworkInfo, NetworkPeer},
-    peer::Peer,
     talk::Message,
 };
 use talk::{crypto::Identity, unicast::Acknowledger};
@@ -16,7 +15,7 @@ pub use faulty_client_handler::FaultyClientHandler;
 pub use faulty_replica_handler::FaultyReplicaHandler;
 pub use peer_handler::PeerHandler;
 pub use replica_handler::ReplicaHandler;
-use tokio::runtime::Handle;
+
 
 use crate::{talk::Instruction, types::*};
 

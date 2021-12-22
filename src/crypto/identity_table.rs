@@ -1,12 +1,12 @@
-use std::{collections::HashMap, ops::Range};
+use std::{ops::Range};
 
 use crate::{
     network::NetworkInfo,
-    peer::{peer::PeerId, Peer},
+    peer::{peer::PeerId},
 };
-use talk::{crypto::Identity, unicast::Message};
+use talk::{crypto::Identity};
 
-use crate::types::*;
+
 
 #[derive(Debug, Clone)]
 pub struct IdentityTable {

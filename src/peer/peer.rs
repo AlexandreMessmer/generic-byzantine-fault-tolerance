@@ -1,21 +1,14 @@
-use std::sync::Arc;
-
-use doomstack::Top;
 use talk::{
-    crypto::Identity,
-    sync::fuse::Fuse,
     unicast::{
-        Acknowledgement, Message, Receiver as UnicastReceiver, Sender as UnicastSender, SenderError,
+        Message,
     },
 };
-use tokio::task::JoinHandle;
+
 
 use super::{handler::Handler, runner::Runner};
 use crate::{
-    crypto::identity_table::IdentityTable,
     network::{
-        network::Network,
-        network_info::{self, NetworkInfo},
+        network_info::{NetworkInfo},
     },
     types::*,
 };
@@ -79,10 +72,3 @@ where
     }
 }
 
-pub struct PeerInfo<T: UnicastMessage> {
-    id: PeerId,
-    key: Arc<Identity>,
-    sender: Arc<UnicastSender<T>>,
-    network_info: Arc<UnicastSender<T>>,
-    identity_table: Arc<IdentityTable>,
-}

@@ -1,16 +1,15 @@
-use std::ops::Range;
+
 
 use talk::{crypto::Identity, sync::fuse::Fuse, unicast::test::UnicastSystem};
 use tokio::sync::mpsc;
 
-use super::{network_info, NetworkInfo, NetworkPeer};
+use super::{NetworkInfo, NetworkPeer};
 
 use crate::{
     crypto::identity_table::{IdentityTable, IdentityTableBuilder},
     peer::{
         handler::{
-            ClientHandler, FaultyClientHandler, FaultyReplicaHandler, Handler, HandlerBuilder,
-            ReplicaHandler,
+            HandlerBuilder,
         },
         runner::Runner,
         Peer,

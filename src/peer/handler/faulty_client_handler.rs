@@ -1,11 +1,9 @@
 use talk::{crypto::Identity, unicast::Acknowledger};
 
 use crate::{
-    crypto::identity_table::IdentityTable,
     network::NetworkInfo,
-    peer::{peer::PeerId, Peer},
+    peer::{peer::PeerId},
     talk::{Instruction, Message},
-    types::*,
 };
 
 use super::{Handler, PeerHandler};
@@ -22,7 +20,7 @@ impl FaultyClientHandler {
 
 #[async_trait::async_trait]
 impl Handler<Message> for FaultyClientHandler {
-    async fn handle_message(&mut self, id: Identity, message: Message, ack: Acknowledger) {
+    async fn handle_message(&mut self, _id: Identity, message: Message, _ack: Acknowledger) {
         match message {
             _ => (),
         }
