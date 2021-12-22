@@ -2,56 +2,52 @@ use talk::{crypto::Identity, unicast::Acknowledger};
 use tokio::sync::oneshot;
 
 use crate::{
+    crypto::identity_table::IdentityTable,
     database::client_database::ClientDatabase,
     error::DatabaseError,
     network::NetworkInfo,
-    peer::Peer,
+    peer::{peer::PeerId, Peer},
     talk::{Command, Feedback, FeedbackSender, Instruction, Message, MessageResult, RequestId},
+    types::*,
 };
 
-use super::Handler;
+use super::{Handler, PeerHandler};
 pub struct ClientHandler {
+    peer_handler: PeerHandler<Message>,
     database: ClientDatabase,
 }
 
 impl ClientHandler {
-    pub fn new() -> Self {
+    pub fn new(peer_handler: PeerHandler<Message>) -> Self {
         ClientHandler {
+            peer_handler,
             database: ClientDatabase::new(),
         }
     }
 
     /// Handling command functions
-    fn handle_command_execute(
-        &mut self,
-        peer: &Peer<Message>,
-        message: Message,
-        id: &RequestId,
-        tx: FeedbackSender,
-    ) {
+    fn handle_command_execute(&mut self, message: Message, id: &RequestId, tx: FeedbackSender) {
         // Do not execute if there is a db error
         if self.database.contains_request(id) {
             tx.send_feedback(Feedback::Error(format!("Request #{} already exists", id)));
         } else {
             self.database.add_request(id.clone(), tx).unwrap();
-            self.broadast_to_replicas(peer, &message);
+            self.broadast_to_replicas(&message);
         }
     }
 
-    fn handle_command_testing(
-        &mut self,
-        peer: &Peer<Message>,
-        sender: Option<oneshot::Sender<Command>>,
-    ) {
+    fn handle_command_testing(&mut self, sender: Option<oneshot::Sender<Command>>) {
         println!(
             "Client #{} starts testing... (broadcast to every peer)",
-            peer.id()
+            self.peer_handler.id()
         );
-        for client in peer.identity_table().clients().iter() {
-            peer.spawn_send(client.clone(), Message::Testing);
+        for client in self.peer_handler.identity_table().clients().iter() {
+            self.peer_handler
+                .spawn_send(client.clone(), Message::Testing);
         }
-        for replica in peer.identity_table().replicas() {
-            peer.spawn_send(replica.clone(), Message::Testing);
+        for replica in self.peer_handler.identity_table().replicas() {
+            self.peer_handler
+                .spawn_send(replica.clone(), Message::Testing);
         }
         if let Some(rx) = sender {
             let _ = rx.send(Command::Answer);
@@ -62,7 +58,6 @@ impl ClientHandler {
 
     fn handle_request_answer(
         &mut self,
-        peer: &Peer<Message>,
         id: RequestId,
         message: Message,
         message_result: MessageResult,
@@ -86,10 +81,10 @@ impl ClientHandler {
             }
         }
     }
-    fn handle_message_testing(&self, peer: &Peer<Message>, message: &Message) {
+    fn handle_message_testing(&self, message: &Message) {
         println!(
             "Client #{} receives {:?} during the test",
-            peer.id(),
+            self.peer_handler.id(),
             message
         );
     }
@@ -98,51 +93,51 @@ impl ClientHandler {
         panic!("{}", e.error_message())
     }
 
-    fn broadast_to_replicas(&self, peer: &Peer<Message>, message: &Message) {
-        for replica in peer.identity_table().replicas() {
-            let spawn = peer.spawn_send(replica.clone(), message.clone());
+    fn broadast_to_replicas(&self, message: &Message) {
+        for replica in self.peer_handler.identity_table().replicas() {
+            let spawn = self
+                .peer_handler
+                .spawn_send(replica.clone(), message.clone());
         }
     }
 }
 #[async_trait::async_trait]
 impl Handler<Message> for ClientHandler {
-    async fn handle_message(
-        &mut self,
-        peer: &Peer<Message>,
-        id: Identity,
-        message: Message,
-        ack: Acknowledger,
-    ) {
+    async fn handle_message(&mut self, id: Identity, message: Message, ack: Acknowledger) {
         let clone = message.clone();
         match message {
             Message::Testing => {
-                self.handle_message_testing(peer, &message);
+                self.handle_message_testing(&message);
             }
             Message::ACK(id, request_message, message_result, _) => self.handle_request_answer(
-                peer,
                 id,
                 clone,
                 message_result,
-                peer.network_info().n_ack(),
+                self.peer_handler.network_info().n_ack(),
             ),
             Message::CHK(id, request_message, message_result, _) => self.handle_request_answer(
-                peer,
                 id,
                 clone,
                 message_result,
-                peer.network_info().nbr_faulty_replicas(),
+                self.peer_handler.network_info().nbr_faulty_replicas(),
             ),
             _ => {}
         }
     }
 
-    async fn handle_instruction(&mut self, peer: &Peer<Message>, instruction: Instruction) {
+    async fn handle_instruction(&mut self, instruction: Instruction) {
         match instruction {
-            (Command::Execute(message, id), tx) => {
-                self.handle_command_execute(&peer, message, &id, tx)
-            }
-            (Command::Testing(sender), _) => self.handle_command_testing(&peer, sender),
+            (Command::Execute(message, id), tx) => self.handle_command_execute(message, &id, tx),
+            (Command::Testing(sender), _) => self.handle_command_testing(sender),
             _ => {}
         }
+    }
+
+    fn id(&self) -> &PeerId {
+        self.peer_handler.id()
+    }
+
+    fn network_info(&self) -> &NetworkInfo {
+        self.peer_handler.network_info()
     }
 }

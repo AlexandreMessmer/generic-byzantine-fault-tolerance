@@ -3,13 +3,14 @@ use std::ops::Range;
 use talk::{crypto::Identity, sync::fuse::Fuse, unicast::test::UnicastSystem};
 use tokio::sync::mpsc;
 
-use super::{network_info, NetworkInfo};
+use super::{network_info, NetworkInfo, NetworkPeer};
 
 use crate::{
     crypto::identity_table::{IdentityTable, IdentityTableBuilder},
     peer::{
         handler::{
-            ClientHandler, FaultyClientHandler, FaultyReplicaHandler, Handler, ReplicaHandler,
+            ClientHandler, FaultyClientHandler, FaultyReplicaHandler, Handler, HandlerBuilder,
+            ReplicaHandler,
         },
         runner::Runner,
         Peer,
@@ -92,8 +93,7 @@ impl Network {
             .zip(receivers)
             .zip(outlets)
             .map(|((((id, key), sender), receiver), outlet)| {
-                let peer_type = NetworkPeer::get_corresponding_type(&id, &client_range, &faulty_client_range, &replica_range, &faulty_replica_range);
-                let handler = Self::get_corresponding_handler(
+                let peer_type = NetworkPeer::get_corresponding_type(
                     &id,
                     &client_range,
                     &faulty_client_range,
@@ -101,71 +101,18 @@ impl Network {
                     &faulty_replica_range,
                 )
                 .unwrap();
-                Peer::<Message>::new(
+                let handler = HandlerBuilder::handler(
+                    peer_type,
                     id,
                     key,
                     sender,
-                    receiver,
-                    outlet,
                     network_info.clone(),
                     identity_table.clone(),
-                    handler,
-                )
+                );
+                Peer::<Message>::new(receiver, outlet, handler)
             })
             .collect::<Vec<_>>();
 
         (peers, identity_table)
-    }
-
-    fn get_corresponding_handler(
-        id: &usize,
-        client_range: &Range<usize>,
-        faulty_client_range: &Range<usize>,
-        replica_range: &Range<usize>,
-        faulty_replica_range: &Range<usize>,
-    ) -> Option<Box<dyn Handler<Message>>> {
-        if client_range.contains(id) {
-            return Some(Box::new(ClientHandler::new()));
-        }
-        if faulty_client_range.contains(id) {
-            return Some(Box::new(FaultyClientHandler::new()));
-        }
-        if replica_range.contains(id) {
-            return Some(Box::new(ReplicaHandler::new()));
-        }
-        if faulty_replica_range.contains(id) {
-            return Some(Box::new(FaultyReplicaHandler::new()));
-        }
-
-        None
-    }
-}
-
-enum NetworkPeer {
-    Client,
-    FaultyClient,
-    Replica,
-    FaultyReplica,
-}
-
-impl NetworkPeer {
-    pub fn get_corresponding_type(
-        id: &usize,
-        client_range: &Range<usize>,
-        faulty_client_range: &Range<usize>,
-        replica_range: &Range<usize>,
-        faulty_replica_range: &Range<usize>,
-    ) -> Option<Self> {
-        if client_range.contains(id) {
-            return Some(NetworkPeer::Client);
-        } else if faulty_client_range.contains(id) {
-            return Some(NetworkPeer::FaultyClient);
-        } else if replica_range.contains(id) {
-            return Some(NetworkPeer::Replica)
-        } else if faulty_replica_range.contains(id) {
-            return Some(NetworkPeer::FaultyReplica);
-        }
-
-        None
     }
 }
