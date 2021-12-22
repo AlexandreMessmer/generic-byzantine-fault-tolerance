@@ -3,7 +3,5 @@ pub mod database;
 pub mod error;
 pub mod network;
 pub mod peer;
-pub mod settings;
-pub mod system;
 pub mod talk;
 pub mod types;

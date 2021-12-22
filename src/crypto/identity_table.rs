@@ -1,7 +1,12 @@
 use std::{collections::HashMap, ops::Range};
 
-use crate::{peer::Peer, system::PeerId, network::NetworkInfo};
+use crate::{
+    network::NetworkInfo,
+    peer::{peer::PeerId, Peer},
+};
 use talk::{crypto::Identity, unicast::Message};
+
+use crate::types::*;
 
 #[derive(Debug, Clone)]
 pub struct IdentityTable {
@@ -42,7 +47,8 @@ impl IdentityTableBuilder {
     }
 
     pub fn build(self) -> IdentityTable {
-        let (client_range, faulty_client_range, replica_range, faulty_replica_range) = self.network_info.compute_ranges();
+        let (client_range, faulty_client_range, replica_range, faulty_replica_range) =
+            self.network_info.compute_ranges();
         let (clients, replicas) = self.peers_mapping.split_at(faulty_client_range.end);
         IdentityTable {
             clients: clients.to_vec(),
@@ -53,6 +59,4 @@ impl IdentityTableBuilder {
             faulty_replica_range,
         }
     }
-
-
 }

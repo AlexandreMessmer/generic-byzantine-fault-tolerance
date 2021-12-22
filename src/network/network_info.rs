@@ -1,4 +1,4 @@
-use std::{time::Duration, ops::Range};
+use std::{ops::Range, time::Duration};
 
 use crate::crypto::identity_table::IdentityTable;
 
@@ -13,22 +13,23 @@ pub struct NetworkInfo {
 }
 
 impl NetworkInfo {
-
-    pub fn new(nbr_clients: usize,
+    pub fn new(
+        nbr_clients: usize,
         nbr_replicas: usize,
         nbr_faulty_clients: usize,
         nbr_faulty_replicas: usize,
         transmition_delay: Duration,
-        n_ack: usize) -> Self {
-            Self {
-                nbr_clients,
-                nbr_replicas,
-                nbr_faulty_clients,
-                nbr_faulty_replicas,
-                transmition_delay,
-                n_ack,
-            }
+        n_ack: usize,
+    ) -> Self {
+        Self {
+            nbr_clients,
+            nbr_replicas,
+            nbr_faulty_clients,
+            nbr_faulty_replicas,
+            transmition_delay,
+            n_ack,
         }
+    }
 
     pub fn nbr_clients(&self) -> usize {
         self.nbr_clients
@@ -77,12 +78,10 @@ impl NetworkInfo {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
     use super::*;
-
+    use std::time::Duration;
 
     #[test]
     fn compute_range_correclty() {

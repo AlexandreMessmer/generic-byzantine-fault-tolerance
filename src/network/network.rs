@@ -1,13 +1,19 @@
 use std::ops::Range;
 
-use talk::{crypto::Identity, unicast::test::UnicastSystem, sync::fuse::Fuse};
+use talk::{crypto::Identity, sync::fuse::Fuse, unicast::test::UnicastSystem};
 use tokio::sync::mpsc;
 
 use super::{network_info, NetworkInfo};
 
 use crate::{
-    crypto::identity_table::{IdentityTableBuilder, IdentityTable},
-    peer::{Peer, handler::{Handler, ClientHandler, FaultyClientHandler, ReplicaHandler, FaultyReplicaHandler}, runner::Runner},
+    crypto::identity_table::{IdentityTable, IdentityTableBuilder},
+    peer::{
+        handler::{
+            ClientHandler, FaultyClientHandler, FaultyReplicaHandler, Handler, ReplicaHandler,
+        },
+        runner::Runner,
+        Peer,
+    },
     talk::{Instruction, Message},
     types::*,
 };
@@ -40,11 +46,12 @@ impl Network {
             receivers,
         } = UnicastSystem::<Message>::setup(size).await.into();
 
-        let (peers, identity_table)  = Self::compose_peers(network_info.clone(), keys, senders, receivers, outlets);
+        let (peers, identity_table) =
+            Self::compose_peers(network_info.clone(), keys, senders, receivers, outlets);
 
         let fuse = Fuse::new();
         {
-            for mut peer in peers {
+            for peer in peers {
                 fuse.spawn(async move {
                     peer.run().await;
                 });
@@ -67,33 +74,40 @@ impl Network {
     ) -> (Vec<MessagePeer>, IdentityTable) {
         let (keys, senders, receivers) =
             (keys.into_iter(), senders.into_iter(), receivers.into_iter());
-
         let size = network_info.size();
-        let identity_table = IdentityTableBuilder::new(network_info.clone());
         let ids = (0..size).into_iter();
 
-        let mut start: usize = 0;
-        let mut end: usize = 0;
-        let (client_range, faulty_client_range, replica_range, faulty_replica_range) = network_info.compute_ranges();
-
-        for key in keys {
+        let mut identity_table = IdentityTableBuilder::new(network_info.clone());
+        for key in keys.clone() {
             identity_table.add_peer(key.clone());
         }
         let identity_table = identity_table.build();
 
-        let peers: Vec<MessagePeer> = ids.zip(keys)
+        let (client_range, faulty_client_range, replica_range, faulty_replica_range) =
+            network_info.compute_ranges();
+
+        let peers: Vec<MessagePeer> = ids
+            .zip(keys)
             .zip(senders)
             .zip(receivers)
             .zip(outlets)
             .map(|((((id, key), sender), receiver), outlet)| {
-                let handler = Self::get_corresponding_handler(&id, &client_range, &faulty_client_range, &replica_range, &faulty_replica_range);
+                let peer_type = NetworkPeer::get_corresponding_type(&id, &client_range, &faulty_client_range, &replica_range, &faulty_replica_range);
+                let handler = Self::get_corresponding_handler(
+                    &id,
+                    &client_range,
+                    &faulty_client_range,
+                    &replica_range,
+                    &faulty_replica_range,
+                )
+                .unwrap();
                 Peer::<Message>::new(
                     id,
                     key,
                     sender,
                     receiver,
                     outlet,
-                    network_info,
+                    network_info.clone(),
                     identity_table.clone(),
                     handler,
                 )
@@ -103,23 +117,28 @@ impl Network {
         (peers, identity_table)
     }
 
-
-    fn get_corresponding_handler(id: &usize, client_range: &Range<usize>, faulty_client_range: &Range<usize>, replica_range: &Range<usize>, faulty_replica_range: &Range<usize>) -> Box<dyn Handler<Message>> {
+    fn get_corresponding_handler(
+        id: &usize,
+        client_range: &Range<usize>,
+        faulty_client_range: &Range<usize>,
+        replica_range: &Range<usize>,
+        faulty_replica_range: &Range<usize>,
+    ) -> Option<Box<dyn Handler<Message>>> {
         if client_range.contains(id) {
-            return Box::new(ClientHandler::new());
+            return Some(Box::new(ClientHandler::new()));
         }
-        else if faulty_client_range.contains(id) {
-            return Box::new(FaultyClientHandler::new());
+        if faulty_client_range.contains(id) {
+            return Some(Box::new(FaultyClientHandler::new()));
         }
-        else if replica_range.contains(id) {
-            return Box::new(ReplicaHandler::new());
+        if replica_range.contains(id) {
+            return Some(Box::new(ReplicaHandler::new()));
         }
-        else {
-            return Box::new(FaultyReplicaHandler::new());
+        if faulty_replica_range.contains(id) {
+            return Some(Box::new(FaultyReplicaHandler::new()));
         }
+
+        None
     }
-
-
 }
 
 enum NetworkPeer {
@@ -130,19 +149,23 @@ enum NetworkPeer {
 }
 
 impl NetworkPeer {
-    pub fn get_corresponding_handler(id: usize, network_info: NetworkInfo, client_range: Range<usize>, faulty_client_range: Range<usize>, replica_range: Range<usize>, faulty_replica_range: Range<usize>) -> Box<dyn Handler<Message>> {
-        if client_range.contains(&id) {
-            return Box::new(ClientHandler::new());
+    pub fn get_corresponding_type(
+        id: &usize,
+        client_range: &Range<usize>,
+        faulty_client_range: &Range<usize>,
+        replica_range: &Range<usize>,
+        faulty_replica_range: &Range<usize>,
+    ) -> Option<Self> {
+        if client_range.contains(id) {
+            return Some(NetworkPeer::Client);
+        } else if faulty_client_range.contains(id) {
+            return Some(NetworkPeer::FaultyClient);
+        } else if replica_range.contains(id) {
+            return Some(NetworkPeer::Replica)
+        } else if faulty_replica_range.contains(id) {
+            return Some(NetworkPeer::FaultyReplica);
         }
-        else if faulty_client_range.contains(&id) {
-            return Box::new(FaultyClientHandler::new());
-        }
-        else if replica_range.contains(&id) {
-            return Box::new(ReplicaHandler::new());
-        }
-        else {
-            return Box::new(FaultyReplicaHandler::new());
-        }
+
+        None
     }
 }
-

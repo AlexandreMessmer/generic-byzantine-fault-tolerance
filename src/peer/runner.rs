@@ -7,5 +7,5 @@ pub trait Runner<T>
 where
     T: UnicastMessage,
 {
-    async fn run(&mut self);
+    async fn run(mut self);
 }

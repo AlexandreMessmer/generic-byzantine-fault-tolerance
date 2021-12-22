@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use doomstack::Top;
 use talk::{
     crypto::Identity,
@@ -11,7 +13,10 @@ use tokio::task::JoinHandle;
 use super::{handler::Handler, runner::Runner};
 use crate::{
     crypto::identity_table::IdentityTable,
-    network::{network_info::{self, NetworkInfo}, network::Network},
+    network::{
+        network::Network,
+        network_info::{self, NetworkInfo},
+    },
     types::*,
 };
 pub type PeerId = usize;
@@ -98,18 +103,27 @@ impl<T> Runner<T> for Peer<T>
 where
     T: Message,
 {
-    async fn run(&mut self) {
+    async fn run(mut self) {
         loop {
+            let handler = &mut self.handler;
             tokio::select! {
                 (id, message, acknowledger) = self.receiver.receive() => {
                     println!("Received something");
-                    self.handler.handle_message(&self, id, message, acknowledger).await;
+                    handler.handle_message(&self, id, message, acknowledger).await;
                 }
 
                 Some(instruction) = self.network_outlet.recv() => {
-                    self.handler.handle_instruction(&self, instruction).await;
+                    handler.handle_instruction(&self, instruction).await;
                 }
             }
         }
     }
+}
+
+pub struct PeerInfo<T: UnicastMessage> {
+    id: PeerId,
+    key: Arc<Identity>,
+    sender: Arc<UnicastSender<T>>,
+    network_info: Arc<UnicastSender<T>>,
+    identity_table: Arc<IdentityTable>,
 }
