@@ -1,4 +1,4 @@
-use std::{ops::Range};
+use std::{ops::{Range, Index}};
 
 use crate::{
     network::NetworkInfo,
@@ -20,11 +20,29 @@ pub struct IdentityTable {
 
 impl IdentityTable {
     pub fn clients(&self) -> &Vec<Identity> {
-        &self.clients()
+        &self.clients
     }
 
     pub fn replicas(&self) -> &Vec<Identity> {
-        &self.replicas()
+        &self.replicas
+    }
+
+    pub fn is_faulty(&self, id: &PeerId) -> bool {
+        self.faulty_client_range.contains(id) || self.faulty_replica_range.contains(id)
+    }
+
+    /// Returns a reference to the range of idenfiers for clients.
+    /// The returned value is a tuple that contains the range of reliable clients and
+    /// the range of faulty clients
+    pub fn client_ids(&self) -> (&Range<PeerId>, &Range<PeerId>) {
+        (&self.client_range, &self.faulty_client_range)
+    }
+
+    /// Returns a reference to the range of idenfiers for replicas.
+    /// The returned value is a tuple that contains the range of reliable replicas and
+    /// the range of faulty replicas
+    pub fn replica_ids(&self) -> (&Range<PeerId>, &Range<PeerId>) {
+        (&self.replica_range, &self.faulty_replica_range)
     }
 }
 
@@ -59,4 +77,9 @@ impl IdentityTableBuilder {
             faulty_replica_range,
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+
 }

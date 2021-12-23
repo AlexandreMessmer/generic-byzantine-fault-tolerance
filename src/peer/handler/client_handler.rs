@@ -9,16 +9,16 @@ use crate::{
     talk::{Command, Feedback, FeedbackSender, Instruction, Message, MessageResult, RequestId},
 };
 
-use super::{Handler, PeerHandler};
+use super::{Handler, Communicator};
 pub struct ClientHandler {
-    peer_handler: PeerHandler<Message>,
+    communicator: Communicator<Message>,
     database: ClientDatabase,
 }
 
 impl ClientHandler {
-    pub fn new(peer_handler: PeerHandler<Message>) -> Self {
+    pub fn new(communicator: Communicator<Message>) -> Self {
         ClientHandler {
-            peer_handler,
+            communicator,
             database: ClientDatabase::new(),
         }
     }
@@ -37,14 +37,14 @@ impl ClientHandler {
     fn handle_command_testing(&mut self, sender: Option<oneshot::Sender<Command>>) {
         println!(
             "Client #{} starts testing... (broadcast to every peer)",
-            self.peer_handler.id()
+            self.communicator.id()
         );
-        for client in self.peer_handler.identity_table().clients().iter() {
-            self.peer_handler
+        for client in self.communicator.identity_table().clients().iter() {
+            self.communicator
                 .spawn_send(client.clone(), Message::Testing);
         }
-        for replica in self.peer_handler.identity_table().replicas() {
-            self.peer_handler
+        for replica in self.communicator.identity_table().replicas() {
+            self.communicator
                 .spawn_send(replica.clone(), Message::Testing);
         }
         if let Some(rx) = sender {
@@ -82,7 +82,7 @@ impl ClientHandler {
     fn handle_message_testing(&self, message: &Message) {
         println!(
             "Client #{} receives {:?} during the test",
-            self.peer_handler.id(),
+            self.communicator.id(),
             message
         );
     }
@@ -92,9 +92,9 @@ impl ClientHandler {
     }
 
     fn broadast_to_replicas(&self, message: &Message) {
-        for replica in self.peer_handler.identity_table().replicas() {
+        for replica in self.communicator.identity_table().replicas() {
             let _spawn = self
-                .peer_handler
+                .communicator
                 .spawn_send(replica.clone(), message.clone());
         }
     }
@@ -111,13 +111,13 @@ impl Handler<Message> for ClientHandler {
                 id,
                 clone,
                 message_result,
-                self.peer_handler.network_info().n_ack(),
+                self.communicator.network_info().n_ack(),
             ),
             Message::CHK(id, _request_message, message_result, _) => self.handle_request_answer(
                 id,
                 clone,
                 message_result,
-                self.peer_handler.network_info().nbr_faulty_replicas(),
+                self.communicator.network_info().nbr_faulty_replicas(),
             ),
             _ => {}
         }
@@ -132,10 +132,10 @@ impl Handler<Message> for ClientHandler {
     }
 
     fn id(&self) -> &PeerId {
-        self.peer_handler.id()
+        self.communicator.id()
     }
 
     fn network_info(&self) -> &NetworkInfo {
-        self.peer_handler.network_info()
+        self.communicator.network_info()
     }
 }

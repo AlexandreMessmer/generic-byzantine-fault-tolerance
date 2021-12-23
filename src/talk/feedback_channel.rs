@@ -15,7 +15,7 @@ impl FeedbackChannel {
             sender,
             fuse: Fuse::new(),
         };
-        let fb_receiver = FeedbackReceiver { receiver: receiver };
+        let fb_receiver = FeedbackReceiver { receiver };
         (fb_sender, fb_receiver)
     }
 }

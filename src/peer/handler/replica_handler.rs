@@ -6,15 +6,15 @@ use crate::{
     talk::{Command, Instruction, Message},
 };
 
-use super::{peer_handler::PeerHandler, Handler};
+use super::{communicator::Communicator, Handler};
 
 pub struct ReplicaHandler {
-    peer_handler: PeerHandler<Message>,
+    communicator: Communicator<Message>,
 }
 
 impl ReplicaHandler {
-    pub fn new(peer_handler: PeerHandler<Message>) -> Self {
-        ReplicaHandler { peer_handler }
+    pub fn new(communicator: Communicator<Message>) -> Self {
+        ReplicaHandler { communicator }
     }
 }
 
@@ -23,7 +23,7 @@ impl Handler<Message> for ReplicaHandler {
     async fn handle_message(&mut self, _id: Identity, message: Message, _ack: Acknowledger) {
         match message {
             Message::Testing => {
-                println!("Replica #{} receives the test!", self.peer_handler.id())
+                println!("Replica #{} receives the test!", self.communicator.id())
             }
             _ => {}
         }
@@ -31,13 +31,13 @@ impl Handler<Message> for ReplicaHandler {
     async fn handle_instruction(&mut self, instruction: Instruction) {
         match instruction {
             (Command::Testing(sender), _) => {
-                println!("Replica #{} starts testing...", self.peer_handler.id());
-                for client in self.peer_handler.identity_table().clients().iter() {
-                    self.peer_handler
+                println!("Replica #{} starts testing...", self.communicator.id());
+                for client in self.communicator.identity_table().clients().iter() {
+                    self.communicator
                         .spawn_send(client.clone(), Message::Testing);
                 }
-                for replica in self.peer_handler.identity_table().replicas() {
-                    self.peer_handler
+                for replica in self.communicator.identity_table().replicas() {
+                    self.communicator
                         .spawn_send(replica.clone(), Message::Testing);
                 }
                 if let Some(rx) = sender {
@@ -49,10 +49,10 @@ impl Handler<Message> for ReplicaHandler {
     }
 
     fn id(&self) -> &PeerId {
-        self.peer_handler.id()
+        self.communicator.id()
     }
 
     fn network_info(&self) -> &NetworkInfo {
-        self.peer_handler.network_info()
+        self.communicator.network_info()
     }
 }

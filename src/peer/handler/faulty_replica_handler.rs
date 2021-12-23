@@ -6,15 +6,15 @@ use crate::{
     talk::{Instruction, Message},
 };
 
-use super::{peer_handler::PeerHandler, Handler};
+use super::{communicator::Communicator, Handler};
 
 pub struct FaultyReplicaHandler {
-    peer_handler: PeerHandler<Message>,
+    communicator: Communicator<Message>,
 }
 
 impl FaultyReplicaHandler {
-    pub fn new(peer_handler: PeerHandler<Message>) -> Self {
-        FaultyReplicaHandler { peer_handler }
+    pub fn new(communicator: Communicator<Message>) -> Self {
+        FaultyReplicaHandler { communicator }
     }
 }
 
@@ -32,10 +32,10 @@ impl Handler<Message> for FaultyReplicaHandler {
     }
 
     fn id(&self) -> &PeerId {
-        self.peer_handler.id()
+        self.communicator.id()
     }
 
     fn network_info(&self) -> &NetworkInfo {
-        self.peer_handler.network_info()
+        self.communicator.network_info()
     }
 }
