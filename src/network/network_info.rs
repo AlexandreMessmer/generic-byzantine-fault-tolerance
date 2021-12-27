@@ -1,7 +1,5 @@
 use std::{ops::Range, time::Duration};
 
-
-
 #[derive(Clone)]
 pub struct NetworkInfo {
     nbr_clients: usize,
@@ -75,6 +73,10 @@ impl NetworkInfo {
             replica_start..replica_end,
             faulty_replica_start..faulty_replica_end,
         )
+    }
+
+    pub fn transmition_delay(&self) -> &Duration {
+        &self.transmition_delay
     }
 }
 

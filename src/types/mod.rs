@@ -3,7 +3,6 @@ pub use talk::unicast::{
 };
 pub use tokio::sync::mpsc::{Receiver as MPSCReceiver, Sender as MPSCSender};
 
-
 use crate::talk::Instruction;
 
 pub type InstructionSender = MPSCSender<Instruction>;

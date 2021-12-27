@@ -1,12 +1,7 @@
-use std::{ops::{Range, Index}};
+use std::ops::{Index, Range};
 
-use crate::{
-    network::NetworkInfo,
-    peer::{peer::PeerId},
-};
-use talk::{crypto::Identity};
-
-
+use crate::{network::NetworkInfo, peer::peer::PeerId};
+use talk::crypto::Identity;
 
 #[derive(Debug, Clone)]
 pub struct IdentityTable {
@@ -80,6 +75,4 @@ impl IdentityTableBuilder {
 }
 
 #[cfg(test)]
-mod tests {
-
-}
+mod tests {}

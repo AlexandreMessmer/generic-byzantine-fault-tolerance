@@ -21,3 +21,9 @@ impl DatabaseError {
         self.error.clone()
     }
 }
+
+impl From<String> for DatabaseError {
+    fn from(str: String) -> Self {
+        DatabaseError { error: str }
+    }
+}

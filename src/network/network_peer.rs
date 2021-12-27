@@ -1,5 +1,6 @@
 use std::ops::Range;
 
+#[derive(Debug, Clone, Copy)]
 pub enum NetworkPeer {
     Client,
     FaultyClient,

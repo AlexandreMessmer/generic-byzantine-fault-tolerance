@@ -1,17 +1,8 @@
-use talk::{
-    unicast::{
-        Message,
-    },
-};
-
+use talk::unicast::Message;
+use tokio::time::sleep;
 
 use super::{handler::Handler, runner::Runner};
-use crate::{
-    network::{
-        network_info::{NetworkInfo},
-    },
-    types::*,
-};
+use crate::{network::network_info::NetworkInfo, talk::Instruction, types::*};
 pub type PeerId = usize;
 pub struct Peer<T: UnicastMessage> {
     receiver: UnicastReceiver<T>,
@@ -56,19 +47,29 @@ where
     T: Message,
 {
     async fn run(mut self) {
+        let id = self.id().clone();
+        println!("Peer #{}: running", id);
+        let handler = &mut self.handler;
         loop {
-            let handler = &mut self.handler;
             tokio::select! {
                 (id, message, acknowledger) = self.receiver.receive() => {
-                    println!("Received something");
+                    sleep(handler.network_info().transmition_delay().clone()).await;
                     handler.handle_message(id, message, acknowledger).await;
                 }
 
                 Some(instruction) = self.network_outlet.recv() => {
-                    handler.handle_instruction(instruction).await;
+                    println!("#{} received instruction", id);
+                    match instruction {
+                        Instruction::Shutdown => {
+                            sleep(handler.network_info().transmition_delay().clone()).await;
+                            break;
+                        },
+                        _ => {handler.handle_instruction(instruction).await},
+                    }
                 }
             }
         }
+
+        println!("Peer #{}: shutdown", self.id())
     }
 }
-

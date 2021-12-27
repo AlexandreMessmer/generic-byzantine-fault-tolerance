@@ -1,21 +1,20 @@
 use crate::{
     crypto::identity_table::IdentityTable,
     network::{NetworkInfo, NetworkPeer},
-    talk::Message,
+    talk::{FeedbackSender, Message},
 };
 use talk::{crypto::Identity, unicast::Acknowledger};
 pub mod client_handler;
+pub mod communicator;
 pub mod faulty_client_handler;
 pub mod faulty_replica_handler;
-pub mod communicator;
 pub mod replica_handler;
 
 pub use client_handler::ClientHandler;
+pub use communicator::Communicator;
 pub use faulty_client_handler::FaultyClientHandler;
 pub use faulty_replica_handler::FaultyReplicaHandler;
-pub use communicator::Communicator;
 pub use replica_handler::ReplicaHandler;
-
 
 use crate::{talk::Instruction, types::*};
 
@@ -52,10 +51,18 @@ impl HandlerBuilder {
         id: PeerId,
         key: Identity,
         sender: UnicastSender<Message>,
+        feedback_inlet: FeedbackSender,
         network_info: NetworkInfo,
         identity_table: IdentityTable,
     ) -> Box<dyn Handler<Message>> {
-        let peer_handler = Communicator::new(id, key, sender, network_info, identity_table);
+        let peer_handler = Communicator::new(
+            id,
+            key,
+            sender,
+            feedback_inlet,
+            network_info,
+            identity_table,
+        );
         Self::get_corresponding_handler(peer_type, peer_handler)
     }
 }

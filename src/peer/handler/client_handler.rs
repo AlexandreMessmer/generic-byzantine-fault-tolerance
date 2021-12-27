@@ -5,11 +5,11 @@ use crate::{
     database::client_database::ClientDatabase,
     error::DatabaseError,
     network::NetworkInfo,
-    peer::{peer::PeerId},
-    talk::{Command, Feedback, FeedbackSender, Instruction, Message, MessageResult, RequestId},
+    peer::peer::PeerId,
+    talk::{Feedback, FeedbackSender, Instruction, Message, MessageResult, RequestId},
 };
 
-use super::{Handler, Communicator};
+use super::{Communicator, Handler};
 pub struct ClientHandler {
     communicator: Communicator<Message>,
     database: ClientDatabase,
@@ -24,32 +24,22 @@ impl ClientHandler {
     }
 
     /// Handling command functions
-    fn handle_command_execute(&mut self, message: Message, id: &RequestId, tx: FeedbackSender) {
+    fn handle_instruction_execute(&mut self, message: Message, id: &RequestId) {
         // Do not execute if there is a db error
         if self.database.contains_request(id) {
-            tx.send_feedback(Feedback::Error(format!("Request #{} already exists", id)));
+            self.communicator.send_feedback(Feedback::Error(format!(
+                "Request #{} is already handled",
+                *id
+            )));
         } else {
-            self.database.add_request(id.clone(), tx).unwrap();
+            self.database.add_request(id.clone()).unwrap();
             self.broadast_to_replicas(&message);
         }
     }
 
-    fn handle_command_testing(&mut self, sender: Option<oneshot::Sender<Command>>) {
-        println!(
-            "Client #{} starts testing... (broadcast to every peer)",
-            self.communicator.id()
-        );
-        for client in self.communicator.identity_table().clients().iter() {
-            self.communicator
-                .spawn_send(client.clone(), Message::Testing);
-        }
-        for replica in self.communicator.identity_table().replicas() {
-            self.communicator
-                .spawn_send(replica.clone(), Message::Testing);
-        }
-        if let Some(rx) = sender {
-            let _ = rx.send(Command::Answer);
-        }
+    fn handle_instruction_testing(&mut self) {
+        self.communicator
+            .spawn_send_feedback(Feedback::Acknowledgement);
     }
 
     /// Handling messages functions
@@ -61,23 +51,17 @@ impl ClientHandler {
         message_result: MessageResult,
         bound: usize,
     ) {
-        if self.database.contains_request(&id) {
-            let count = self
-                .database
-                .update_request(id.clone(), message.clone())
-                .unwrap();
-            if let Some(nbr) = count {
-                if nbr == bound - 1 {
-                    let completion_result = self.database.complete_request(&id);
-                    match completion_result {
-                        Ok(feedback_sender) => {
-                            feedback_sender.send_feedback(Feedback::Result(message_result));
-                        }
-                        Err(database_error) => Self::handle_error(database_error),
-                    }
-                }
-            }
-        }
+        if let Ok(()) = self
+            .database
+            .update_request(&id, message.clone())
+            .map(|count| {
+                if count == bound {
+                    self.database.complete_request(&id);
+                    // Needs to send feedback
+                };
+                ()
+            })
+        {}
     }
     fn handle_message_testing(&self, message: &Message) {
         println!(
@@ -125,8 +109,8 @@ impl Handler<Message> for ClientHandler {
 
     async fn handle_instruction(&mut self, instruction: Instruction) {
         match instruction {
-            (Command::Execute(message, id), tx) => self.handle_command_execute(message, &id, tx),
-            (Command::Testing(sender), _) => self.handle_command_testing(sender),
+            Instruction::Execute(message, id) => self.handle_instruction_execute(message, &id),
+            Instruction::Testing => self.handle_instruction_testing(),
             _ => {}
         }
     }

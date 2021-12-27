@@ -1,9 +1,4 @@
 pub mod client_database;
-pub mod message_result_database;
-pub mod request_database;
-
-pub use self::message_result_database::MessageResultDatabase;
-pub use self::request_database::RequestDatabase;
 
 use std::collections::HashMap;
 

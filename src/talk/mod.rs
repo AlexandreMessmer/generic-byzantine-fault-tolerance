@@ -1,28 +1,27 @@
-
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 use talk::unicast::{Receiver as TalkReceiver, Sender as TalkSender};
 use talk::{crypto::Identity, sync::fuse::Fuse, unicast::test::UnicastSystem};
-use tokio::sync::oneshot::Sender as OneshotSender;
+use tokio::sync::mpsc;
+use tokio::sync::oneshot::{self, Sender as OneshotSender};
 use uuid::Uuid;
 
-pub mod feedback_channel;
-pub mod feedback_receiver;
-pub mod feedback_sender;
+pub mod request;
+pub use request::Request;
+
 pub type RequestId = Uuid;
-pub type Instruction = (Command, FeedbackSender);
-pub enum Command {
+pub enum Instruction {
     Send(usize, Message),
     Execute(Message, RequestId),
-    Testing(Option<OneshotSender<Command>>), // Only for testing purposes
-    AskStatus(Message, FeedbackSender),
-    Answer,
+    Testing, // Only for testing purposes
+    Broadcast(Message),
+    Shutdown,
 }
-impl Command {
-    pub fn execute(message: Message) -> Command {
+impl Instruction {
+    pub fn execute(message: Message) -> Instruction {
         let id = Uuid::new_v4();
-        Command::Execute(message, id)
+        Instruction::Execute(message, id)
     }
 }
 
@@ -50,13 +49,12 @@ pub struct MessageResult {}
 
 #[derive(Debug)]
 pub struct FeedbackChannel {}
-
-pub struct FeedbackSender {
-    id: Identity,
-    sender: TalkSender<Feedback>,
-    fuse: Fuse,
+impl FeedbackChannel {
+    pub fn channel() -> (FeedbackSender, FeedbackReceiver) {
+        mpsc::channel(32)
+    }
 }
 
-pub struct FeedbackReceiver {
-    receiver: TalkReceiver<Feedback>,
-}
+pub type FeedbackSender = mpsc::Sender<Feedback>;
+
+pub type FeedbackReceiver = mpsc::Receiver<Feedback>;
