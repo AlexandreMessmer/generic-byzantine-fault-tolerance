@@ -1,4 +1,10 @@
-use std::{ops::Range, time::Duration};
+use std::{
+    ops::Range,
+    time::{Duration, SystemTime, SystemTimeError},
+};
+
+use rand::thread_rng;
+use rand_distr::{Distribution, Poisson};
 
 #[derive(Clone)]
 pub struct NetworkInfo {
@@ -6,8 +12,9 @@ pub struct NetworkInfo {
     nbr_replicas: usize,
     nbr_faulty_clients: usize,
     nbr_faulty_replicas: usize,
-    transmition_delay: Duration,
+    transmition_delay: Poisson<f64>, // In milliseconds
     n_ack: usize,
+    creation: SystemTime,
 }
 
 impl NetworkInfo {
@@ -16,7 +23,7 @@ impl NetworkInfo {
         nbr_replicas: usize,
         nbr_faulty_clients: usize,
         nbr_faulty_replicas: usize,
-        transmition_delay: Duration,
+        transmition_delay: u64,
         n_ack: usize,
     ) -> Self {
         Self {
@@ -24,8 +31,9 @@ impl NetworkInfo {
             nbr_replicas,
             nbr_faulty_clients,
             nbr_faulty_replicas,
-            transmition_delay,
+            transmition_delay: Poisson::new(transmition_delay as f64).unwrap(),
             n_ack,
+            creation: SystemTime::now(),
         }
     }
 
@@ -75,19 +83,23 @@ impl NetworkInfo {
         )
     }
 
-    pub fn transmition_delay(&self) -> &Duration {
-        &self.transmition_delay
+    pub fn transmition_delay(&self) -> u64 {
+        let mut rng = thread_rng();
+        self.transmition_delay.sample(&mut rng) as u64
+    }
+
+    pub fn elapsed(&self) -> Result<Duration, SystemTimeError> {
+        self.creation.elapsed()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
 
     #[test]
     fn compute_range_correclty() {
-        let info = NetworkInfo::new(5, 5, 2, 2, Duration::from_secs(1), 0);
+        let info = NetworkInfo::new(5, 5, 2, 2, 1, 0);
         let (client_range, faulty_client_range, replica_range, faulty_replica_range) =
             info.compute_ranges();
 

@@ -1,3 +1,4 @@
+use rand_distr::Distribution;
 use talk::unicast::Message;
 use tokio::time::sleep;
 
@@ -42,26 +43,26 @@ where
 }
 
 #[async_trait::async_trait]
-impl<T> Runner<T> for Peer<T>
+impl<T> Runner for Peer<T>
 where
     T: Message,
 {
     async fn run(mut self) {
         let id = self.id().clone();
+        let network_info = self.network_info().clone();
         println!("Peer #{}: running", id);
+
         let handler = &mut self.handler;
         loop {
             tokio::select! {
                 (id, message, acknowledger) = self.receiver.receive() => {
-                    sleep(handler.network_info().transmition_delay().clone()).await;
                     handler.handle_message(id, message, acknowledger).await;
                 }
 
                 Some(instruction) = self.network_outlet.recv() => {
-                    println!("#{} received instruction", id);
+                    println!("[{:#?}] #{} received instruction", network_info.elapsed().unwrap() ,id);
                     match instruction {
                         Instruction::Shutdown => {
-                            sleep(handler.network_info().transmition_delay().clone()).await;
                             break;
                         },
                         _ => {handler.handle_instruction(instruction).await},

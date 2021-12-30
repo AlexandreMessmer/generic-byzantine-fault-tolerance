@@ -1,3 +1,4 @@
+pub mod coordinator;
 pub mod handler;
 pub mod peer;
 pub mod runner;

@@ -1,20 +1,52 @@
+use std::{collections::BTreeSet, time::SystemTime};
+
 use talk::{crypto::Identity, unicast::Acknowledger};
 
 use crate::{
+    database::{self, replica_database::ReplicaDatabase},
     network::NetworkInfo,
-    peer::peer::PeerId,
-    talk::{Instruction, Message},
+    peer::{peer::PeerId, coordinator::{ProposalSignedData, ProposalData}},
+    talk::{Command, Instruction, Message, Phase, RoundNumber},
+    types::*,
 };
+
 
 use super::{communicator::Communicator, Handler};
 
 pub struct ReplicaHandler {
     communicator: Communicator<Message>,
+    proposal_inlet: MPSCSender<ProposalSignedData>,
+    proposal_outlet: BroadcastReceiver<ProposalData>,
+    database: ReplicaDatabase,
 }
 
 impl ReplicaHandler {
-    pub fn new(communicator: Communicator<Message>) -> Self {
-        ReplicaHandler { communicator }
+    pub fn new(communicator: Communicator<Message>, 
+        proposal_inlet: MPSCSender<ProposalSignedData>,
+        proposal_outlet: BroadcastReceiver<ProposalData>) -> Self {
+        ReplicaHandler {
+            communicator,
+            proposal_inlet,
+            proposal_outlet,
+            database: ReplicaDatabase::new(),
+        }
+    }
+
+    fn handle_command(&mut self, command: Command) {
+        self.database.receive_command(command);
+    }
+
+    /// Implements task 1b and 1c
+    fn handle_command_broadcast(
+        &mut self,
+        command: Command,
+        round: RoundNumber,
+        set: BTreeSet<Command>,
+        phase: Phase,
+    ) {
+        if round.eq(self.database.round()) {
+            self.database.receive_set(&set);
+        }
     }
 }
 
@@ -25,6 +57,8 @@ impl Handler<Message> for ReplicaHandler {
             Message::Testing => {
                 println!("Replica #{} received the test", self.communicator.id())
             }
+            Message::Command(command) => self.handle_command(command),
+            Message::BroadcastCommand(command, k, set, phase) => {}
             _ => {}
         }
     }

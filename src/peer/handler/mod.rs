@@ -18,7 +18,10 @@ pub use replica_handler::ReplicaHandler;
 
 use crate::{talk::Instruction, types::*};
 
-use super::peer::PeerId;
+use super::{
+    coordinator::{ProposalData, ProposalSignedData, Coordinator},
+    peer::PeerId,
+};
 
 #[async_trait::async_trait]
 pub trait Handler<T>: Sync + Send
@@ -37,11 +40,12 @@ impl HandlerBuilder {
     fn get_corresponding_handler(
         peer_type: NetworkPeer,
         peer_handler: Communicator<Message>,
+        coordinator: &Coordinator,
     ) -> Box<dyn Handler<Message>> {
         match peer_type {
             NetworkPeer::Client => Box::new(ClientHandler::new(peer_handler)),
             NetworkPeer::FaultyClient => Box::new(FaultyClientHandler::new(peer_handler)),
-            NetworkPeer::Replica => Box::new(ReplicaHandler::new(peer_handler)),
+            NetworkPeer::Replica => Box::new(ReplicaHandler::new(peer_handler, coordinator.proposer(), coordinator.subscribe())),
             NetworkPeer::FaultyReplica => Box::new(FaultyReplicaHandler::new(peer_handler)),
         }
     }
@@ -52,6 +56,7 @@ impl HandlerBuilder {
         key: Identity,
         sender: UnicastSender<Message>,
         feedback_inlet: FeedbackSender,
+        coordinator: &Coordinator,
         network_info: NetworkInfo,
         identity_table: IdentityTable,
     ) -> Box<dyn Handler<Message>> {
@@ -63,6 +68,6 @@ impl HandlerBuilder {
             network_info,
             identity_table,
         );
-        Self::get_corresponding_handler(peer_type, peer_handler)
+        Self::get_corresponding_handler(peer_type, peer_handler, coordinator)
     }
 }

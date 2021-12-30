@@ -27,3 +27,5 @@ impl From<String> for DatabaseError {
         DatabaseError { error: str }
     }
 }
+
+pub struct ShutdownError;

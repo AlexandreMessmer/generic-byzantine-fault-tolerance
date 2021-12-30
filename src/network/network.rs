@@ -13,6 +13,7 @@ use tokio::time::error::Elapsed;
 
 use super::{NetworkInfo, NetworkPeer};
 
+use crate::peer::coordinator::Coordinator;
 use crate::{
     crypto::identity_table::{IdentityTable, IdentityTableBuilder},
     peer::{handler::HandlerBuilder, peer::PeerId, runner::Runner, Peer},
@@ -29,7 +30,7 @@ pub struct Network {
     peers_inlets: Vec<InstructionSender>,
     feedback_outlet: FeedbackReceiver,
     identity_table: IdentityTable,
-    fuse: Fuse,
+    _fuse: Fuse,
 }
 
 impl Network {
@@ -52,7 +53,7 @@ impl Network {
             receivers,
         } = UnicastSystem::<Message>::setup(size).await.into();
 
-        let (peers, identity_table) = Self::compose_peers(
+        let (peers, coordinator, identity_table) = Self::compose_peers(
             network_info.clone(),
             keys,
             senders,
@@ -68,6 +69,10 @@ impl Network {
                     peer.run().await;
                 });
             }
+
+            fuse.spawn(async move {
+                coordinator.run().await;
+            });
         }
 
         Network {
@@ -75,7 +80,7 @@ impl Network {
             peers_inlets: inlets,
             feedback_outlet,
             identity_table,
-            fuse,
+            _fuse: fuse,
         }
     }
 
@@ -86,7 +91,7 @@ impl Network {
         receivers: Vec<UnicastReceiver<Message>>,
         outlets: Vec<InstructionReceiver>,
         feedback_inlet: FeedbackSender,
-    ) -> (Vec<MessagePeer>, IdentityTable) {
+    ) -> (Vec<MessagePeer>, Coordinator, IdentityTable) {
         let (keys, senders, receivers) =
             (keys.into_iter(), senders.into_iter(), receivers.into_iter());
         let size = network_info.size();
@@ -100,6 +105,8 @@ impl Network {
 
         let (client_range, faulty_client_range, replica_range, faulty_replica_range) =
             network_info.compute_ranges();
+
+        let coordinator = Coordinator::new(network_info.clone());
 
         let peers: Vec<MessagePeer> = ids
             .zip(keys)
@@ -121,6 +128,7 @@ impl Network {
                     key,
                     sender,
                     feedback_inlet.clone(),
+                    &coordinator,
                     network_info.clone(),
                     identity_table.clone(),
                 );
@@ -128,7 +136,7 @@ impl Network {
             })
             .collect::<Vec<_>>();
 
-        (peers, identity_table)
+        (peers, coordinator, identity_table)
     }
 
     fn peer_inlet(&self, id: PeerId) -> Option<&InstructionSender> {
@@ -206,17 +214,18 @@ impl Network {
         self.feedback_outlet.recv().await
     }
 
+    /// Blocking function to shutdown the network.
     pub async fn shutdown(self) {
         let mut handles: Vec<JoinHandle<Result<Result<(), SendError<Instruction>>, Top<Timeout>>>> =
             Vec::new();
         for peer in self.peers_inlets.clone() {
             let future = async move { peer.send(Instruction::Shutdown).await };
-            let future = timeout(Duration::from_secs(5), future);
+            let future = timeout(SHUTDOWN_TIMEOUT.clone(), future);
             let handle = tokio::spawn(future);
 
             handles.push(handle);
         }
-        let res = join_all(handles).await;
+        let _ = join_all(handles).await;
     }
     /// Wait until every peers are shut downed.
     /// Timeout with a default timer.
@@ -234,7 +243,7 @@ impl Drop for Network {
 #[cfg(test)]
 mod tests {
 
-    use std::time::Duration;
+    use std::time::{Duration, SystemTime};
 
     use futures::{future, FutureExt};
 
@@ -244,7 +253,7 @@ mod tests {
 
     #[tokio::test]
     async fn building_network_works() {
-        let network_info = NetworkInfo::new(5, 5, 0, 0, Duration::from_millis(10), 3);
+        let network_info = NetworkInfo::new(5, 5, 0, 0, 100, 3);
         let mut network = Network::setup(network_info).await;
         for i in 0..10 {
             network.send_instruction(Instruction::Testing, i).await;
@@ -258,7 +267,7 @@ mod tests {
 
     #[tokio::test]
     async fn sending_instruction_with_type_reaches_every_peers() {
-        let network_info = NetworkInfo::new(2, 2, 2, 2, Duration::from_millis(10), 0);
+        let network_info = NetworkInfo::new(2, 2, 2, 2, 10, 0);
         let mut network = Network::setup(network_info).await;
         let types: [NetworkPeer; 4] = [
             NetworkPeer::Client,

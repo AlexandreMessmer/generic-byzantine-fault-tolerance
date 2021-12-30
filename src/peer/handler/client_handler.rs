@@ -2,11 +2,11 @@ use talk::{crypto::Identity, unicast::Acknowledger};
 use tokio::sync::oneshot;
 
 use crate::{
-    database::client_database::ClientDatabase,
+    database::client_database::{ClientDatabase, Request},
     error::DatabaseError,
     network::NetworkInfo,
     peer::peer::PeerId,
-    talk::{Feedback, FeedbackSender, Instruction, Message, MessageResult, RequestId},
+    talk::{command, Command, CommandId, Feedback, FeedbackSender, Instruction, Message, Phase},
 };
 
 use super::{Communicator, Handler};
@@ -24,15 +24,20 @@ impl ClientHandler {
     }
 
     /// Handling command functions
-    fn handle_instruction_execute(&mut self, message: Message, id: &RequestId) {
+    async fn handle_instruction_execute(&mut self, command: Command) {
+        let id = command.id().clone();
+        let message = Message::Command(command);
         // Do not execute if there is a db error
-        if self.database.contains_request(id) {
-            self.communicator.send_feedback(Feedback::Error(format!(
-                "Request #{} is already handled",
-                *id
-            )));
+        if self.database.contains_request(&id) {
+            self.communicator
+                .send_feedback(Feedback::Error(format!(
+                    "Request #{} is already handled",
+                    id
+                )))
+                .await
+                .unwrap();
         } else {
-            self.database.add_request(id.clone()).unwrap();
+            self.database.add_request(id).unwrap();
             self.broadast_to_replicas(&message);
         }
     }
@@ -44,25 +49,24 @@ impl ClientHandler {
 
     /// Handling messages functions
 
-    fn handle_request_answer(
-        &mut self,
-        id: RequestId,
-        message: Message,
-        message_result: MessageResult,
-        bound: usize,
-    ) {
-        if let Ok(()) = self
-            .database
-            .update_request(&id, message.clone())
-            .map(|count| {
-                if count == bound {
-                    self.database.complete_request(&id);
-                    // Needs to send feedback
-                };
-                ()
-            })
-        {}
+    async fn handle_command_acknowledgement(&mut self, id: &CommandId, request: Request) {
+        let (_, _, phase) = &request;
+        let phase = phase.clone();
+        if let Ok(count) = self.database.update_request(id, request) {
+            let bound = if phase == Phase::ACK {
+                self.communicator.network_info().n_ack()
+            } else {
+                self.communicator.network_info().nbr_faulty_replicas()
+            };
+
+            if count >= bound {
+                self.database.complete_request(id).unwrap();
+                self.acknowledge_completed_request().await;
+            }
+        }
     }
+
+    async fn acknowledge_completed_request(&self) -> () {}
     fn handle_message_testing(&self, message: &Message) {
         println!(
             "Client #{} receives {:?} during the test",
@@ -86,30 +90,21 @@ impl ClientHandler {
 #[async_trait::async_trait]
 impl Handler<Message> for ClientHandler {
     async fn handle_message(&mut self, _id: Identity, message: Message, _ack: Acknowledger) {
-        let clone = message.clone();
         match message {
             Message::Testing => {
                 self.handle_message_testing(&message);
             }
-            Message::ACK(id, _request_message, message_result, _) => self.handle_request_answer(
-                id,
-                clone,
-                message_result,
-                self.communicator.network_info().n_ack(),
-            ),
-            Message::CHK(id, _request_message, message_result, _) => self.handle_request_answer(
-                id,
-                clone,
-                message_result,
-                self.communicator.network_info().nbr_faulty_replicas(),
-            ),
+            Message::CommandAcknowledgement(command, round, command_result, phase) => {
+                self.handle_command_acknowledgement(command.id(), (round, command_result, phase))
+                    .await;
+            }
             _ => {}
         }
     }
 
     async fn handle_instruction(&mut self, instruction: Instruction) {
         match instruction {
-            Instruction::Execute(message, id) => self.handle_instruction_execute(message, &id),
+            Instruction::Execute(command) => self.handle_instruction_execute(command).await,
             Instruction::Testing => self.handle_instruction_testing(),
             _ => {}
         }
