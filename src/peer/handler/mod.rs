@@ -19,7 +19,7 @@ pub use replica_handler::ReplicaHandler;
 use crate::{talk::Instruction, types::*};
 
 use super::{
-    coordinator::{ProposalData, ProposalSignedData, Coordinator},
+    coordinator::{Coordinator, ProposalData, ProposalSignedData},
     peer::PeerId,
 };
 
@@ -45,7 +45,11 @@ impl HandlerBuilder {
         match peer_type {
             NetworkPeer::Client => Box::new(ClientHandler::new(peer_handler)),
             NetworkPeer::FaultyClient => Box::new(FaultyClientHandler::new(peer_handler)),
-            NetworkPeer::Replica => Box::new(ReplicaHandler::new(peer_handler, coordinator.proposer(), coordinator.subscribe())),
+            NetworkPeer::Replica => Box::new(ReplicaHandler::new(
+                peer_handler,
+                coordinator.proposer(),
+                coordinator.subscribe(),
+            )),
             NetworkPeer::FaultyReplica => Box::new(FaultyReplicaHandler::new(peer_handler)),
         }
     }

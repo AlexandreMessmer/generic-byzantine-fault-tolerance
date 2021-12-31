@@ -140,7 +140,5 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn spawning_test() {
-
-    }
+    async fn spawning_test() {}
 }

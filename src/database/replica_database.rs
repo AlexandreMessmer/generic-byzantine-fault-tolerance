@@ -1,6 +1,9 @@
-use std::{collections::{BTreeMap, BTreeSet, HashMap}, ptr::eq};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    ptr::eq,
+};
 
-use crate::talk::{Command, CommandResult, Message, RoundNumber, Phase};
+use crate::talk::{Command, CommandResult, Message, Phase, RoundNumber};
 
 pub type Set = BTreeSet<Command>;
 pub type ResultBuffer = HashMap<Command, CommandResult>;
@@ -61,14 +64,15 @@ impl ReplicaDatabase {
     pub fn reset_result(&mut self) {
         self.results_buffer.clear();
     }
-    
+
     pub fn add_result(&mut self, cmd: Command, res: CommandResult) {
         self.results_buffer.insert(cmd, res);
     }
 
-    
     pub fn remove_result(&mut self, cmd: &Command) -> bool {
-        self.results_buffer.remove(cmd).map(|_| true)
+        self.results_buffer
+            .remove(cmd)
+            .map(|_| true)
             .unwrap_or(false)
     }
 
@@ -117,7 +121,7 @@ mod tests {
     #[test]
     fn receive_command_test() {
         let mut db = ReplicaDatabase::new();
-        let mut cmds: Vec<Command> = Vec::new(); 
+        let mut cmds: Vec<Command> = Vec::new();
         for _ in 0..10 {
             cmds.push(Command::new());
         }
@@ -165,5 +169,4 @@ mod tests {
 
         assert_eq!(db.results_buffer.contains_key(&cmd1), false);
     }
-
 }

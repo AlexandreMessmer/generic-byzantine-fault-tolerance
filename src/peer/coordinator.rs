@@ -27,9 +27,7 @@ pub struct Coordinator {
 }
 
 impl Coordinator {
-    pub fn new(
-        network_info: NetworkInfo,
-    ) -> Self {
+    pub fn new(network_info: NetworkInfo) -> Self {
         let (broadcaster, _) = broadcast::channel(BUFFER_SIZE);
         let (sender, receiver) = mpsc::channel(BUFFER_SIZE);
         let coordinator = Coordinator {

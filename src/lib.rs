@@ -3,7 +3,7 @@ pub mod database;
 pub mod error;
 pub mod network;
 pub mod peer;
+pub mod relation;
 pub mod talk;
 pub mod time;
 pub mod types;
-pub mod relation;

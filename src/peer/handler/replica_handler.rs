@@ -1,16 +1,25 @@
-use std::{collections::BTreeSet, time::{SystemTime, Duration}, os::unix::process};
+use std::{
+    collections::BTreeSet,
+    os::unix::process,
+    time::{Duration, SystemTime},
+};
 
-use talk::{crypto::Identity, unicast::Acknowledger, time::timeout};
+use talk::{crypto::Identity, time::timeout, unicast::Acknowledger};
 use tokio::sync::broadcast::error::RecvError;
 
 use crate::{
-    database::{self, replica_database::{ReplicaDatabase, Set}},
+    database::{
+        self,
+        replica_database::{ReplicaDatabase, Set},
+    },
     network::NetworkInfo,
-    peer::{peer::PeerId, coordinator::{ProposalSignedData, ProposalData}},
-    talk::{Command, Instruction, Message, Phase, RoundNumber, CommandResult},
+    peer::{
+        coordinator::{ProposalData, ProposalSignedData},
+        peer::PeerId,
+    },
+    talk::{Command, CommandResult, Instruction, Message, Phase, RoundNumber},
     types::*,
 };
-
 
 use super::{communicator::Communicator, Handler};
 
@@ -22,9 +31,11 @@ pub struct ReplicaHandler {
 }
 
 impl ReplicaHandler {
-    pub fn new(communicator: Communicator<Message>, 
+    pub fn new(
+        communicator: Communicator<Message>,
         proposal_inlet: MPSCSender<ProposalSignedData>,
-        proposal_outlet: BroadcastReceiver<ProposalData>) -> Self {
+        proposal_outlet: BroadcastReceiver<ProposalData>,
+    ) -> Self {
         ReplicaHandler {
             communicator,
             proposal_inlet,
@@ -64,7 +75,8 @@ impl ReplicaHandler {
         let pending_k = self.database.pending();
 
         let received_minus_del: BTreeSet<Command> = received.difference(g_del).cloned().collect();
-        let new_commands: BTreeSet<Command> = received_minus_del.difference(pending_k).cloned().collect();
+        let new_commands: BTreeSet<Command> =
+            received_minus_del.difference(pending_k).cloned().collect();
 
         (new_commands, received_minus_del)
     }
@@ -82,13 +94,21 @@ impl ReplicaHandler {
                 }
 
                 self.database.set_pending(received_diff_delivered);
-                self.broadcast_to_replicas(self.database.pending().clone(), Phase::ACK).await;
-            }
-            else {
-                self.broadcast_to_replicas(received_diff_delivered, Phase::CHK).await;
-                let (k, nc_set, c_set) = self.propose((self.communicator.key().clone(), *self.database.round(), self.database.pending().clone(), unprocessed_commands)).await.expect("Fails to unwrap the proposal");
-                if k.eq(self.database.round()) { 
-
+                self.broadcast_to_replicas(self.database.pending().clone(), Phase::ACK)
+                    .await;
+            } else {
+                self.broadcast_to_replicas(received_diff_delivered, Phase::CHK)
+                    .await;
+                let (k, nc_set, c_set) = self
+                    .propose((
+                        self.communicator.key().clone(),
+                        *self.database.round(),
+                        self.database.pending().clone(),
+                        unprocessed_commands,
+                    ))
+                    .await
+                    .expect("Fails to unwrap the proposal");
+                if k.eq(self.database.round()) {
                     let pending = self.database.pending();
                     let pending_diff_nc_set: Set = pending.difference(&nc_set).cloned().collect();
                     let pending_diff_nc_set = pending_diff_nc_set.into_iter();
@@ -97,26 +117,37 @@ impl ReplicaHandler {
                         self.database.remove_result(&command);
                     }
 
-                    let nc_set_diff_delivered: Set = nc_set.difference(self.database.delivered()).cloned().collect();
+                    let nc_set_diff_delivered: Set = nc_set
+                        .difference(self.database.delivered())
+                        .cloned()
+                        .collect();
                     let nc_set_diff_delivered = nc_set_diff_delivered.into_iter();
-                    
+
                     for command in nc_set_diff_delivered {
-                        let result = self.database.results_buffer().get(&command)
+                        let result = self
+                            .database
+                            .results_buffer()
+                            .get(&command)
                             .map(|res| res.clone())
                             .unwrap_or(command.execute());
 
-                        self.acknowledge_client(command, result.clone(), Phase::CHK).await;
+                        self.acknowledge_client(command, result.clone(), Phase::CHK)
+                            .await;
                         self.execute(result);
                     }
 
-                    let mut c_set_ordered: Vec<Command> = c_set.difference(self.database.delivered()).cloned().collect(); 
+                    let mut c_set_ordered: Vec<Command> = c_set
+                        .difference(self.database.delivered())
+                        .cloned()
+                        .collect();
                     c_set_ordered.sort();
 
                     let c_set_ordered = c_set_ordered.into_iter();
 
                     for command in c_set_ordered {
                         let result = command.execute();
-                        self.acknowledge_client(command, result.clone(), Phase::CHK).await;
+                        self.acknowledge_client(command, result.clone(), Phase::CHK)
+                            .await;
                         self.execute(result);
                     }
 
@@ -131,8 +162,23 @@ impl ReplicaHandler {
         }
     }
 
-    async fn acknowledge_client(&self, command: Command, command_result: CommandResult, phase: Phase) {
-        self.communicator.spawn_send(command.issuer().clone(), Message::CommandAcknowledgement(command, *self.database.round(), command_result, phase)).await;
+    async fn acknowledge_client(
+        &self,
+        command: Command,
+        command_result: CommandResult,
+        phase: Phase,
+    ) {
+        self.communicator
+            .spawn_send(
+                command.issuer().clone(),
+                Message::CommandAcknowledgement(
+                    command,
+                    *self.database.round(),
+                    command_result,
+                    phase,
+                ),
+            )
+            .await;
     }
 
     async fn propose(&mut self, data: ProposalSignedData) -> Result<ProposalData, RecvError> {
@@ -145,7 +191,9 @@ impl ReplicaHandler {
         let replicas = self.communicator.identity_table().replicas();
         for replica in replicas {
             if !self.communicator.key().eq(replica) {
-                self.communicator.spawn_send(replica.clone(), message.clone()).await;
+                self.communicator
+                    .spawn_send(replica.clone(), message.clone())
+                    .await;
             }
         }
     }
@@ -175,7 +223,9 @@ impl Handler<Message> for ReplicaHandler {
                 println!("Replica #{} received the test", self.communicator.id())
             }
             Message::Command(command) => self.handle_command(command),
-            Message::ReplicaBroadcast(k, set, phase) => self.handle_replica_broadcast(k, set, phase),
+            Message::ReplicaBroadcast(k, set, phase) => {
+                self.handle_replica_broadcast(k, set, phase)
+            }
             _ => {}
         }
         let process = self.process_commands();
@@ -200,7 +250,6 @@ impl Handler<Message> for ReplicaHandler {
     }
 }
 
-
 mod tests {
     use super::*;
 
@@ -210,7 +259,7 @@ mod tests {
         for _ in 0..15 {
             set.insert(Command::new());
         }
-        
+
         ReplicaHandler::is_there_conflict(&set, &set);
     }
 }
