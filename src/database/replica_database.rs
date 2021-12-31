@@ -3,8 +3,7 @@ use std::{collections::{BTreeMap, BTreeSet, HashMap}, ptr::eq};
 use crate::talk::{Command, CommandResult, Message, RoundNumber, Phase};
 
 pub type Set = BTreeSet<Command>;
-pub type ResultBuffer = Vec<ResultBufferData>;
-pub type ResultBufferData = (RoundNumber, Command, CommandResult, Phase);
+pub type ResultBuffer = HashMap<Command, CommandResult>;
 /// Defines the data structures for a `ReplicaHanlder`.
 /// `received` contains all the messages broadcasted in the network so far.
 /// `delivered` contains all the messages that have been delivered (i.e. validated) by the `Replica` in
@@ -15,7 +14,7 @@ pub type ResultBufferData = (RoundNumber, Command, CommandResult, Phase);
 pub struct ReplicaDatabase {
     received: Set,
     delivered: Set,
-    pending: HashMap<RoundNumber, Set>,
+    pending: Set,
     results_buffer: ResultBuffer,
     round: usize,
 }
@@ -24,8 +23,8 @@ impl ReplicaDatabase {
     pub fn new() -> Self {
         let received = BTreeSet::new();
         let delivered = BTreeSet::new();
-        let pending = HashMap::new();
-        let results_buffer = Vec::new();
+        let pending = BTreeSet::new();
+        let results_buffer = HashMap::new();
         let round = 1;
 
         ReplicaDatabase {
@@ -46,30 +45,31 @@ impl ReplicaDatabase {
         self.received = self.received.union(set).cloned().collect()
     }
 
-    pub fn delivered_set(&mut self, set: &Set) {
-        self.delivered = self.received.union(set).cloned().collect()
+    pub fn delivered_all(&mut self, set: &Set) {
+        self.delivered = self.delivered.union(&set.clone()).cloned().collect();
     }
 
-    /// Set pending_{round} to {set}
-    /// Returns true if the modification has been done
-    pub fn set_pending(&mut self, round: RoundNumber, set: Set) -> bool {
-        if self.pending.contains_key(&round) {
-            self.pending.insert(round, set);
-            return true;
-        }
-        false
+    /// Set pending set to {set}
+    pub fn set_pending(&mut self, set: Set) -> () {
+        self.pending = set;
     }
 
-    pub fn add_result(&mut self, k: RoundNumber, cmd: Command, res: CommandResult, phase: Phase) {
-        self.results_buffer.push((k, cmd, res, phase))
+    pub fn reset_pending(&mut self) {
+        self.pending.clear();
     }
 
-    /// The result is executed speculatively. This operation is costly.
-    pub fn remove_result(&mut self, k: RoundNumber, cmd: Command) {
-        self.results_buffer = self.results_buffer.clone()
-            .into_iter()
-            .filter(|(round, command, _, _)| !(k.eq(round) && cmd.eq(command)))
-            .collect();
+    pub fn reset_result(&mut self) {
+        self.results_buffer.clear();
+    }
+    
+    pub fn add_result(&mut self, cmd: Command, res: CommandResult) {
+        self.results_buffer.insert(cmd, res);
+    }
+
+    
+    pub fn remove_result(&mut self, cmd: &Command) -> bool {
+        self.results_buffer.remove(cmd).map(|_| true)
+            .unwrap_or(false)
     }
 
     pub fn received(&self) -> &Set {
@@ -80,8 +80,8 @@ impl ReplicaDatabase {
         &self.delivered
     }
 
-    pub fn pending(&self, k: &RoundNumber) -> Option<&Set> {
-        self.pending.get(k)
+    pub fn pending(&self) -> &Set {
+        &self.pending
     }
 
     pub fn results_buffer(&self) -> &ResultBuffer {
@@ -90,6 +90,10 @@ impl ReplicaDatabase {
 
     pub fn round(&self) -> &usize {
         &self.round
+    }
+
+    pub fn increment_round(&mut self) {
+        self.round += 1;
     }
 
     pub fn received_mut(&mut self) -> &mut Set {
@@ -151,15 +155,15 @@ mod tests {
         let cmd1 = Command::new();
         let cmd2 = Command::new();
         let cmd3 = Command::new();
-        db.add_result(1, cmd1.clone(), cmd1.execute(), Phase::ACK);
-        db.add_result(1, cmd2.clone(), cmd2.execute(), Phase::ACK);
-        db.add_result(1, cmd3.clone(), cmd3.execute(), Phase::ACK);
+        db.add_result(cmd1.clone(), cmd1.execute());
+        db.add_result(cmd2.clone(), cmd2.execute());
+        db.add_result(cmd3.clone(), cmd3.execute());
 
-        assert_eq!(db.results_buffer.contains(&(1, cmd1.clone(), cmd1.execute(), Phase::ACK)), true);
+        assert_eq!(db.results_buffer.contains_key(&cmd1), true);
 
-        db.remove_result(1, cmd1.clone());
+        db.remove_result(&cmd1);
 
-        assert_eq!(db.results_buffer.contains(&(1, cmd1.clone(), cmd1.execute(), Phase::ACK)), false);
+        assert_eq!(db.results_buffer.contains_key(&cmd1), false);
     }
 
 }

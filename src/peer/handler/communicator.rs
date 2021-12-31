@@ -61,6 +61,10 @@ where
         }
     }
 
+    pub fn key(&self) -> &Identity {
+        &self.key
+    }
+
     pub async fn send_message(
         &self,
         remote: Identity,

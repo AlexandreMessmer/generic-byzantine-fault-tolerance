@@ -41,7 +41,7 @@ pub enum Message {
     CHK(CommandId, Arc<Message>, CommandResult, RoundNumber),
     Command(Command),
     CommandAcknowledgement(Command, RoundNumber, CommandResult, Phase),
-    BroadcastCommand(Command, RoundNumber, Set, Phase),
+    ReplicaBroadcast(RoundNumber, Set, Phase),
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash)]

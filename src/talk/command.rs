@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
+use talk::crypto::Identity;
 use uuid::Uuid;
+
+use crate::relation::{conflict::ConflictingRelation, Relation};
 
 use super::CommandId;
 
@@ -18,6 +21,10 @@ impl Command {
         &self.id
     }
 
+    pub fn issuer(&self) -> &Identity {
+        todo!()
+    }
+
     pub fn generate_id() -> Uuid {
         Uuid::new_v4()
     }
@@ -27,7 +34,7 @@ impl Command {
     }
 
     pub fn conflict(&self, other: &Command) -> bool {
-        false
+        ConflictingRelation::is_related(&self, other)
     }
 }
 
