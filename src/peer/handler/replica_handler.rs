@@ -8,10 +8,13 @@ use talk::{crypto::Identity, time::timeout, unicast::Acknowledger};
 use tokio::sync::broadcast::error::RecvError;
 
 use crate::{
+    banking::banking::Banking,
+    banking::transaction::Transaction,
     database::{
         self,
         replica_database::{ReplicaDatabase, Set},
     },
+    error::BankingError,
     network::NetworkInfo,
     peer::{
         coordinator::{ProposalData, ProposalSignedData},
@@ -28,6 +31,7 @@ pub struct ReplicaHandler {
     proposal_inlet: MPSCSender<ProposalSignedData>,
     proposal_outlet: BroadcastReceiver<ProposalData>,
     database: ReplicaDatabase,
+    banking: Banking,
 }
 
 impl ReplicaHandler {
@@ -41,6 +45,7 @@ impl ReplicaHandler {
             proposal_inlet,
             proposal_outlet,
             database: ReplicaDatabase::new(),
+            banking: Banking::new(),
         }
     }
 
@@ -88,7 +93,7 @@ impl ReplicaHandler {
             if !Self::is_there_conflict(&received_diff_delivered, &received_diff_delivered) {
                 let unprocessed_commands = unprocessed_commands.into_iter();
                 for command in unprocessed_commands {
-                    let result = command.execute();
+                    let result = self.execute(&command);
                     self.database.add_result(command.clone(), result.clone());
                     self.acknowledge_client(command, result, Phase::ACK).await;
                 }
@@ -114,6 +119,7 @@ impl ReplicaHandler {
                     let pending_diff_nc_set = pending_diff_nc_set.into_iter();
 
                     for command in pending_diff_nc_set {
+                        self.rollback(&command);
                         self.database.remove_result(&command);
                     }
 
@@ -126,14 +132,11 @@ impl ReplicaHandler {
                     for command in nc_set_diff_delivered {
                         let result = self
                             .database
-                            .results_buffer()
-                            .get(&command)
-                            .map(|res| res.clone())
-                            .unwrap_or(command.execute());
+                            .results_mut()
+                            .remove(&command)
+                            .unwrap_or(self.execute(&command));
 
-                        self.acknowledge_client(command, result.clone(), Phase::CHK)
-                            .await;
-                        self.execute(result);
+                        self.acknowledge_client(command, result, Phase::CHK).await;
                     }
 
                     let mut c_set_ordered: Vec<Command> = c_set
@@ -145,10 +148,8 @@ impl ReplicaHandler {
                     let c_set_ordered = c_set_ordered.into_iter();
 
                     for command in c_set_ordered {
-                        let result = command.execute();
-                        self.acknowledge_client(command, result.clone(), Phase::CHK)
-                            .await;
-                        self.execute(result);
+                        let result = self.execute(&command);
+                        self.acknowledge_client(command, result, Phase::CHK).await;
                     }
 
                     self.database.delivered_all(&nc_set);
@@ -167,18 +168,27 @@ impl ReplicaHandler {
         command: Command,
         command_result: CommandResult,
         phase: Phase,
-    ) {
-        self.communicator
-            .spawn_send(
-                command.issuer().clone(),
-                Message::CommandAcknowledgement(
-                    command,
-                    *self.database.round(),
-                    command_result,
-                    phase,
-                ),
-            )
-            .await;
+    ) -> bool {
+        if let Some(key) = self
+            .communicator
+            .identity_table()
+            .get_client_id(*command.issuer())
+        {
+            self.communicator
+                .spawn_send(
+                    key.clone(),
+                    Message::CommandAcknowledgement(
+                        command,
+                        *self.database.round(),
+                        command_result,
+                        phase,
+                    ),
+                )
+                .await;
+
+            return true;
+        }
+        false
     }
 
     async fn propose(&mut self, data: ProposalSignedData) -> Result<ProposalData, RecvError> {
@@ -210,8 +220,82 @@ impl ReplicaHandler {
         return false;
     }
 
-    fn execute(&mut self, command_result: CommandResult) {
-        todo!()
+    /// Execute the given command, and stores the transaction in the log.
+    /// Returns the result
+    fn execute(&mut self, command: &Command) -> CommandResult {
+        let action = command.action();
+        let id = *self.communicator.id();
+        let result = match action {
+            crate::banking::action::Action::Register => {
+                if self.banking.register(id) {
+                    CommandResult::Success(None)
+                } else {
+                    CommandResult::Failure(format!("Client #{} is already registered", id))
+                }
+            }
+            crate::banking::action::Action::Get => self
+                .banking
+                .get(&id)
+                .map(|amount| CommandResult::Success(Some(amount)))
+                .unwrap_or(CommandResult::Failure(format!(
+                    "Client #{} is not registered",
+                    id
+                ))),
+            crate::banking::action::Action::Deposit(amount) => self
+                .banking
+                .deposit(&id, *amount)
+                .map(|res| CommandResult::Success(Some(res)))
+                .unwrap_or(CommandResult::Failure(format!(
+                    "Client #{} cannot deposit because he is not registered",
+                    self.communicator.id()
+                ))),
+            crate::banking::action::Action::Withdraw(amount) => self
+                .banking
+                .withdraw(&id, *amount)
+                .map(|amount| CommandResult::Success(Some(amount)))
+                .unwrap_or_else(|err| match err {
+                    BankingError::ClientNotFound => {
+                        CommandResult::Failure(format!("Client #{} is not registered", id))
+                    }
+                    BankingError::UnsufficientBalance => {
+                        CommandResult::Failure(format!("Unsufficient balance"))
+                    }
+                }),
+        };
+        self.database
+            .log(Transaction::from_command(command, &result));
+        return result;
+    }
+
+    fn rollback(&mut self, command: &Command) -> Result<(), BankingError> {
+        let action = command.action();
+        let id = self.communicator.id();
+        let banking = &mut self.banking;
+        let speculative_result = self
+            .database
+            .results()
+            .get(command)
+            .map(|result| {
+                match result {
+                    // Only rollback the effect if the command was successful
+                    CommandResult::Success(_) => match action {
+                        crate::banking::action::Action::Register => {
+                            banking.unregister(id);
+                            Ok(())
+                        }
+                        crate::banking::action::Action::Get => Ok(()),
+                        crate::banking::action::Action::Deposit(amount) => {
+                            banking.withdraw(id, *amount).map(|_| ())
+                        }
+                        crate::banking::action::Action::Withdraw(amount) => {
+                            banking.deposit(id, *amount).map(|_| ())
+                        }
+                    },
+                    CommandResult::Failure(_) => Ok(()),
+                }
+            })
+            .unwrap_or(Err(BankingError::UnsufficientBalance));
+        speculative_result
     }
 }
 
@@ -251,13 +335,15 @@ impl Handler<Message> for ReplicaHandler {
 }
 
 mod tests {
+    use crate::banking::action::Action;
+
     use super::*;
 
     #[test]
     fn borrow_test_checker() {
         let mut set: Set = BTreeSet::new();
         for _ in 0..15 {
-            set.insert(Command::new());
+            set.insert(Command::new(0, Action::Register));
         }
 
         ReplicaHandler::is_there_conflict(&set, &set);

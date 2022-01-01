@@ -3,7 +3,10 @@ use std::{
     ptr::eq,
 };
 
-use crate::talk::{Command, CommandResult, Message, Phase, RoundNumber};
+use crate::{
+    banking::transaction::Transaction,
+    talk::{Command, CommandResult, Message, Phase, RoundNumber},
+};
 
 pub type Set = BTreeSet<Command>;
 pub type ResultBuffer = HashMap<Command, CommandResult>;
@@ -18,24 +21,20 @@ pub struct ReplicaDatabase {
     received: Set,
     delivered: Set,
     pending: Set,
-    results_buffer: ResultBuffer,
+    results: ResultBuffer,
     round: usize,
+    log: Vec<Transaction>,
 }
 
 impl ReplicaDatabase {
     pub fn new() -> Self {
-        let received = BTreeSet::new();
-        let delivered = BTreeSet::new();
-        let pending = BTreeSet::new();
-        let results_buffer = HashMap::new();
-        let round = 1;
-
         ReplicaDatabase {
-            received,
-            delivered,
-            pending,
-            results_buffer,
-            round,
+            received: BTreeSet::new(),
+            delivered: BTreeSet::new(),
+            pending: BTreeSet::new(),
+            results: HashMap::new(),
+            round: 1,
+            log: Vec::new(),
         }
     }
 
@@ -62,18 +61,19 @@ impl ReplicaDatabase {
     }
 
     pub fn reset_result(&mut self) {
-        self.results_buffer.clear();
+        self.results.clear();
     }
 
-    pub fn add_result(&mut self, cmd: Command, res: CommandResult) {
-        self.results_buffer.insert(cmd, res);
+    /// Returns false if a command was overwritten
+    pub fn add_result(&mut self, cmd: Command, res: CommandResult) -> bool {
+        self.results
+            .insert(cmd, res)
+            .map(|previous| false)
+            .unwrap_or(true)
     }
 
-    pub fn remove_result(&mut self, cmd: &Command) -> bool {
-        self.results_buffer
-            .remove(cmd)
-            .map(|_| true)
-            .unwrap_or(false)
+    pub fn remove_result(&mut self, cmd: &Command) -> Option<CommandResult> {
+        self.results.remove(cmd)
     }
 
     pub fn received(&self) -> &Set {
@@ -88,8 +88,8 @@ impl ReplicaDatabase {
         &self.pending
     }
 
-    pub fn results_buffer(&self) -> &ResultBuffer {
-        &self.results_buffer
+    pub fn results(&self) -> &ResultBuffer {
+        &self.results
     }
 
     pub fn round(&self) -> &usize {
@@ -108,13 +108,19 @@ impl ReplicaDatabase {
         &mut self.delivered
     }
 
-    pub fn results_buffer_mut(&mut self) -> &mut ResultBuffer {
-        &mut self.results_buffer
+    pub fn results_mut(&mut self) -> &mut ResultBuffer {
+        &mut self.results
+    }
+
+    pub fn log(&mut self, transaction: Transaction) {
+        self.log.push(transaction)
     }
 }
 
 #[cfg(test)]
 mod tests {
+
+    use crate::banking::action::Action;
 
     use super::*;
 
@@ -123,7 +129,7 @@ mod tests {
         let mut db = ReplicaDatabase::new();
         let mut cmds: Vec<Command> = Vec::new();
         for _ in 0..10 {
-            cmds.push(Command::new());
+            cmds.push(Command::new(0, Action::Register));
         }
 
         for cmd in cmds.clone().into_iter() {
@@ -140,9 +146,9 @@ mod tests {
         let mut db = ReplicaDatabase::new();
         let mut cmds: BTreeSet<Command> = BTreeSet::new();
         for _ in 0..10 {
-            cmds.insert(Command::new());
+            cmds.insert(Command::new(0, Action::Register));
         }
-        let unique_cmd = Command::new();
+        let unique_cmd = Command::new(0, Action::Register);
         db.receive_command(unique_cmd.clone());
         db.receive_set(&cmds);
 
@@ -156,17 +162,17 @@ mod tests {
     #[test]
     fn result_buffer_remove_test() {
         let mut db = ReplicaDatabase::new();
-        let cmd1 = Command::new();
-        let cmd2 = Command::new();
-        let cmd3 = Command::new();
-        db.add_result(cmd1.clone(), cmd1.execute());
-        db.add_result(cmd2.clone(), cmd2.execute());
-        db.add_result(cmd3.clone(), cmd3.execute());
+        let cmd1 = Command::new(0, Action::Register);
+        let cmd2 = Command::new(0, Action::Register);
+        let cmd3 = Command::new(0, Action::Register);
+        db.add_result(cmd1.clone(), CommandResult::Success(None));
+        db.add_result(cmd2.clone(), CommandResult::Success(None));
+        db.add_result(cmd3.clone(), CommandResult::Success(None));
 
-        assert_eq!(db.results_buffer.contains_key(&cmd1), true);
+        assert_eq!(db.results.contains_key(&cmd1), true);
 
         db.remove_result(&cmd1);
 
-        assert_eq!(db.results_buffer.contains_key(&cmd1), false);
+        assert_eq!(db.results.contains_key(&cmd1), false);
     }
 }

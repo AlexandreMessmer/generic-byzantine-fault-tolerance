@@ -163,6 +163,7 @@ mod tests {
     use talk::unicast::test::UnicastSystem;
 
     use crate::{
+        banking::action::Action,
         network::{network::Network, network_info},
         talk::Message,
     };
@@ -206,17 +207,17 @@ mod tests {
         let id2 = keys.remove(0);
 
         let mut nc_set: BTreeSet<Command> = BTreeSet::new();
-        let cmd1 = Command::new();
-        let cmd2 = Command::new();
-        let cmd3 = Command::new();
+        let cmd1 = Command::new(0, Action::Register);
+        let cmd2 = Command::new(0, Action::Register);
+        let cmd3 = Command::new(0, Action::Register);
         nc_set.insert(cmd1.clone());
         nc_set.insert(cmd2.clone());
         nc_set.insert(cmd3.clone());
 
         let mut c_set: ProposalSet = BTreeSet::new();
-        let cmd4 = Command::new();
-        let cmd5 = Command::new();
-        let cmd6 = Command::new();
+        let cmd4 = Command::new(0, Action::Register);
+        let cmd5 = Command::new(0, Action::Register);
+        let cmd6 = Command::new(0, Action::Register);
         c_set.insert(cmd4.clone());
         c_set.insert(cmd5.clone());
         c_set.insert(cmd6.clone());
@@ -259,17 +260,17 @@ mod tests {
         let ids: Vec<Identity> = network.identity_table().replicas().clone();
         let round = 1;
         let mut nc_set: BTreeSet<Command> = BTreeSet::new();
-        let cmd1 = Command::new();
-        let cmd2 = Command::new();
-        let cmd3 = Command::new();
+        let cmd1 = Command::new(0, Action::Register);
+        let cmd2 = Command::new(0, Action::Register);
+        let cmd3 = Command::new(0, Action::Register);
         nc_set.insert(cmd1.clone());
         nc_set.insert(cmd2.clone());
         nc_set.insert(cmd3.clone());
 
         let mut c_set: ProposalSet = BTreeSet::new();
-        let cmd4 = Command::new();
-        let cmd5 = Command::new();
-        let cmd6 = Command::new();
+        let cmd4 = Command::new(0, Action::Register);
+        let cmd5 = Command::new(0, Action::Register);
+        let cmd6 = Command::new(0, Action::Register);
         c_set.insert(cmd4.clone());
         c_set.insert(cmd5.clone());
         c_set.insert(cmd6.clone());
@@ -314,17 +315,17 @@ mod tests {
         let ids: Vec<Identity> = network.identity_table().replicas().clone();
         let round = 1;
         let mut nc_set: BTreeSet<Command> = BTreeSet::new();
-        let cmd1 = Command::new();
-        let cmd2 = Command::new();
-        let cmd3 = Command::new();
+        let cmd1 = Command::new(0, Action::Register);
+        let cmd2 = Command::new(0, Action::Register);
+        let cmd3 = Command::new(0, Action::Register);
         nc_set.insert(cmd1.clone());
         nc_set.insert(cmd2.clone());
         nc_set.insert(cmd3.clone());
 
         let mut c_set: ProposalSet = BTreeSet::new();
-        let cmd4 = Command::new();
-        let cmd5 = Command::new();
-        let cmd6 = Command::new();
+        let cmd4 = Command::new(0, Action::Register);
+        let cmd5 = Command::new(0, Action::Register);
+        let cmd6 = Command::new(0, Action::Register);
         c_set.insert(cmd4.clone());
         c_set.insert(cmd5.clone());
         c_set.insert(cmd6.clone());

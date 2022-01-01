@@ -18,8 +18,17 @@ impl IdentityTable {
         &self.clients
     }
 
+    pub fn get_client_id(&self, id: PeerId) -> Option<&Identity> {
+        self.clients.get(id)
+    }
+
     pub fn replicas(&self) -> &Vec<Identity> {
         &self.replicas
+    }
+
+    /// Returns the given replica's identity with the first replica being 0
+    pub fn get_replica_id(&self, id: PeerId) -> Option<&Identity> {
+        self.replicas.get(id)
     }
 
     pub fn is_faulty(&self, id: &PeerId) -> bool {

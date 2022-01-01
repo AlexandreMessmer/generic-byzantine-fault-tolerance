@@ -29,3 +29,8 @@ impl From<String> for DatabaseError {
 }
 
 pub struct ShutdownError;
+
+pub enum BankingError {
+    ClientNotFound,
+    UnsufficientBalance,
+}

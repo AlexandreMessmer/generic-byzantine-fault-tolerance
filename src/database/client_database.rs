@@ -81,14 +81,14 @@ impl ClientDatabase {
 mod tests {
     use uuid::Uuid;
 
-    use crate::talk::Command;
+    use crate::{banking::action::Action, talk::Command};
 
     use super::*;
 
     #[test]
     fn add_request_works() {
         let mut db = ClientDatabase::new();
-        let request = Command::new();
+        let request = Command::new(0, Action::Register);
         assert_eq!(db.contains_request(request.id()), false);
         db.add_request(request.id().clone()).unwrap();
         assert_eq!(db.contains_request(request.id()), true);
