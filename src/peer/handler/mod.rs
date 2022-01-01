@@ -19,7 +19,7 @@ pub use replica_handler::ReplicaHandler;
 use crate::{talk::Instruction, types::*};
 
 use super::{
-    coordinator::{Coordinator, ProposalData, ProposalSignedData},
+    coordinator::{Coordinator},
     peer::PeerId,
 };
 

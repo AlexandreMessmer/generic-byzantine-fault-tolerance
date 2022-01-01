@@ -5,8 +5,8 @@ use std::collections::HashMap;
 
 use crate::talk::CommandResult;
 use crate::{
-    error::{DatabaseError, InvalidRequest},
-    talk::{CommandId, Feedback, FeedbackSender, Message},
+    error::{DatabaseError},
+    talk::{CommandId, Message},
 };
 
 type ResultHashMap = HashMap<CommandResult, usize>;

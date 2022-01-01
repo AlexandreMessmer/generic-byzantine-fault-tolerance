@@ -1,11 +1,10 @@
 use std::{
-    collections::{BTreeMap, BTreeSet, HashMap},
-    ptr::eq,
+    collections::{BTreeSet, HashMap},
 };
 
 use crate::{
     banking::transaction::Transaction,
-    talk::{Command, CommandResult, Message, Phase, RoundNumber},
+    talk::{Command, CommandResult},
 };
 
 pub type Set = BTreeSet<Command>;
@@ -68,7 +67,7 @@ impl ReplicaDatabase {
     pub fn add_result(&mut self, cmd: Command, res: CommandResult) -> bool {
         self.results
             .insert(cmd, res)
-            .map(|previous| false)
+            .map(|_previous| false)
             .unwrap_or(true)
     }
 
@@ -114,6 +113,10 @@ impl ReplicaDatabase {
 
     pub fn log(&mut self, transaction: Transaction) {
         self.log.push(transaction)
+    }
+
+    pub fn log_mut(&mut self) -> &mut Vec<Transaction> {
+        &mut self.log
     }
 }
 

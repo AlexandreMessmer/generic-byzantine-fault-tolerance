@@ -34,6 +34,10 @@ impl Transaction {
         }
     }
 
+    pub fn id(&self) -> &Uuid {
+        &self.id
+    }
+
     pub fn from_command(command: &Command, result: &CommandResult) -> Self {
         Transaction::new(
             *command.id(),

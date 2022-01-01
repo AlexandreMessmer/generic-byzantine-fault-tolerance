@@ -164,7 +164,7 @@ mod tests {
 
     use crate::{
         banking::action::Action,
-        network::{network::Network, network_info},
+        network::{network::Network},
         talk::Message,
     };
 
@@ -190,7 +190,7 @@ mod tests {
         map.insert(1, 1);
         map.insert(2, 2);
 
-        let values: Vec<i32> = map.into_values().collect();
+        let _values: Vec<i32> = map.into_values().collect();
     }
 
     #[tokio::test]
@@ -199,8 +199,8 @@ mod tests {
         let mut coordinator = Coordinator::new(network_info);
         let UnicastSystem {
             mut keys,
-            senders,
-            receivers,
+            senders: _,
+            receivers: _,
         } = UnicastSystem::<Message>::setup(2).await;
 
         let id1 = keys.remove(0);
@@ -345,7 +345,7 @@ mod tests {
         let received = coordinator.received.clone();
 
         while i < network_info.n_ack() {
-            let proposed = coordinator.propose((
+            let _proposed = coordinator.propose((
                 ids.get(i).unwrap().clone(),
                 round,
                 nc_set.clone(),

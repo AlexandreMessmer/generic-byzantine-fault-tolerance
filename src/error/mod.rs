@@ -30,6 +30,7 @@ impl From<String> for DatabaseError {
 
 pub struct ShutdownError;
 
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum BankingError {
     ClientNotFound,
     UnsufficientBalance,

@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
 
-use crate::relation::Relation;
+
 
 use super::banking::Money;
 

@@ -1,4 +1,4 @@
-use std::ops::{Index, Range};
+use std::ops::{Range};
 
 use crate::{network::NetworkInfo, peer::peer::PeerId};
 use talk::crypto::Identity;
@@ -63,12 +63,12 @@ impl IdentityTableBuilder {
         }
     }
 
-    pub fn add_peer(&mut self, peer: Identity) -> &Self {
+    pub fn add_peer(&mut self, peer: Identity) -> &mut Self {
         self.peers_mapping.push(peer);
         self
     }
 
-    pub fn build(self) -> IdentityTable {
+    pub fn build(&self) -> IdentityTable {
         let (client_range, faulty_client_range, replica_range, faulty_replica_range) =
             self.network_info.compute_ranges();
         let (clients, replicas) = self.peers_mapping.split_at(faulty_client_range.end);

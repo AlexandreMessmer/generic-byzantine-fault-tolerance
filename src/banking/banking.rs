@@ -1,10 +1,10 @@
 use std::collections::HashMap;
 
-use talk::crypto::Identity;
+
 
 use crate::{error::BankingError, peer::peer::PeerId};
 
-use super::transaction::Transaction;
+
 
 pub type Money = u64;
 
@@ -39,7 +39,7 @@ impl Banking {
     pub fn unregister(&mut self, client: &PeerId) -> bool {
         self.clients
             .remove(client)
-            .map(|client| true)
+            .map(|_client| true)
             .unwrap_or(false)
     }
 
@@ -79,7 +79,7 @@ impl Banking {
                 }
                 Err(BankingError::UnsufficientBalance)
             })
-            .unwrap_or(Err(BankingError::UnsufficientBalance))
+            .unwrap_or(Err(BankingError::ClientNotFound))
     }
 
     pub fn get(&self, client: &PeerId) -> Option<Money> {
@@ -89,12 +89,8 @@ impl Banking {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        collections::hash_map::DefaultHasher,
-        hash::{Hash, Hasher},
-    };
 
-    use talk::crypto::{KeyCard, KeyChain};
+    use crate::banking;
 
     use super::*;
 
@@ -148,5 +144,27 @@ mod tests {
 
         assert_eq!(banking.transfer_to(&client1, &client2, 11), false);
         assert_eq!(banking.transfer_to(&client1, &client2, 10), true);
+    }
+
+    #[test]
+    fn withdraw_test() {
+        let mut banking = Banking::new();
+        banking.clients.insert(1, 40);
+
+        let w = banking.withdraw(&1, 30).unwrap();
+        assert_eq!(w, 10);
+
+        let w = banking.withdraw(&1, 11).unwrap_err();
+        assert_eq!(w, BankingError::UnsufficientBalance);
+
+        assert_eq!(banking.withdraw(&2, 0).unwrap_err(), BankingError::ClientNotFound);
+    }
+
+    #[test]
+    fn get_test() {
+        let mut banking = Banking::new();
+        banking.clients.insert(1, 30);
+        assert_eq!(banking.get(&1).unwrap(), 30);
+        assert_eq!(banking.get(&2), None);
     }
 }

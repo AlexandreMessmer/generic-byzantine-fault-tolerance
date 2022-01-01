@@ -1,17 +1,18 @@
 use std::collections::HashMap;
 
-use crate::talk::{Command, Phase, RoundNumber};
+use crate::talk::{Phase, RoundNumber};
 
 use super::*;
 
-pub type Request = (RoundNumber, CommandResult, Phase);
+pub type RequestResult = (RoundNumber, CommandResult, Phase);
+type RequestDatabase = HashMap<CommandId, HashMap<RequestResult, usize>>;
 pub struct ClientDatabase {
-    requests: HashMap<CommandId, HashMap<Request, usize>>,
+    requests: RequestDatabase,
 }
 impl ClientDatabase {
     pub fn new() -> Self {
         ClientDatabase {
-            requests: HashMap::<CommandId, HashMap<Request, usize>>::new(),
+            requests: HashMap::<CommandId, HashMap<RequestResult, usize>>::new(),
         }
     }
 
@@ -30,7 +31,7 @@ impl ClientDatabase {
     pub fn update_request(
         &mut self,
         request_id: &CommandId,
-        request: Request,
+        request: RequestResult,
     ) -> Result<usize, DatabaseError> {
         let nbr = self
             .requests
@@ -55,14 +56,14 @@ impl ClientDatabase {
     pub fn complete_request(&mut self, request_id: &CommandId) -> Result<(), DatabaseError> {
         self.requests
             .remove(request_id)
-            .map(|_| ())
+            .map(|res| ())
             .ok_or(DatabaseError::new("The request doesn't exist"))
     }
 
     pub fn is_request_completed(
         &self,
         request_id: &CommandId,
-        request: &Request,
+        request: &RequestResult,
         bound: usize,
     ) -> Result<bool, DatabaseError> {
         self.requests
@@ -74,6 +75,10 @@ impl ClientDatabase {
                 "Cannot retrieve the request {}",
                 *request_id
             )))
+    }
+
+    pub fn requests(&self) -> &RequestDatabase {
+        &self.requests
     }
 }
 

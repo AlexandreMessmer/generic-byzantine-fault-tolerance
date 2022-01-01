@@ -1,15 +1,14 @@
-use std::{collections::BTreeSet, iter::Product, time::Duration};
+use std::{time::Duration};
 
 use doomstack::Top;
-use rand::thread_rng;
-use rand_distr::{Distribution, Poisson};
+
+
 use talk::{
     crypto::Identity,
     sync::fuse::Fuse,
     unicast::{Acknowledgement, SenderError},
 };
 use tokio::{
-    sync::broadcast::{Receiver as BroadcastReceiver, Sender as BroadcastSender},
     task::JoinHandle,
     time::sleep,
 };
@@ -18,10 +17,9 @@ use crate::{
     crypto::identity_table::IdentityTable,
     network::NetworkInfo,
     peer::{
-        coordinator::{ProposalData, ProposalSignedData},
         peer::PeerId,
     },
-    talk::{Command, Feedback, FeedbackSender},
+    talk::{Feedback, FeedbackSender},
     types::*,
 };
 
@@ -119,26 +117,47 @@ where
     async fn transmit(delay: u64) {
         sleep(Duration::from_millis(delay)).await;
     }
+
 }
 
+#[cfg(test)]
 mod tests {
 
-    use talk::unicast::test::UnicastSystem;
+    use talk::{unicast::test::UnicastSystem, time::timeout};
+    use tokio::join;
 
-    use crate::talk::Message;
+    use crate::{talk::{Message, FeedbackChannel}, network::network_info, tests::util::Utils, crypto::identity_table::IdentityTableBuilder};
 
     use super::*;
 
-    async fn unicast_channel() -> (UnicastSender<Message>, UnicastReceiver<Message>) {
+    async fn unicast_channel() -> (Identity, UnicastSender<Message>, UnicastReceiver<Message>) {
         let UnicastSystem {
-            keys,
+            mut keys,
             mut senders,
             mut receivers,
         } = UnicastSystem::<Message>::setup(1).await;
 
-        (senders.pop().unwrap(), receivers.pop().unwrap())
+        (keys.pop().unwrap(), senders.pop().unwrap(), receivers.pop().unwrap())
     }
 
     #[tokio::test]
     async fn spawning_test() {}
+
+    #[tokio::test]
+    async fn communication_test() {
+        let network_info = NetworkInfo::new(0, 0, 0, 0, 1, 0);
+        let (mut keys, mut senders, mut receivers) = Utils::mock_network(2).await;
+        let (key, sender, _) = Utils::pop(&mut keys, &mut senders, &mut receivers);
+        let (target, _, mut receiver) = Utils::pop(&mut keys, &mut senders, &mut receivers);
+        let (rx, mut tx) = FeedbackChannel::channel();
+        let communicator = Communicator::new(0, key.clone(), sender, rx, network_info.clone(), IdentityTableBuilder::new(network_info).build());
+        let send = communicator.spawn_send(target.clone(), Message::Testing).await;
+        
+        let (id, recv, _) = receiver.receive().await;
+        
+        assert_eq!(id, key.clone());
+        assert_eq!(recv, Message::Testing);
+
+    
+    }
 }

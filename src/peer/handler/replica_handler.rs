@@ -1,7 +1,6 @@
 use std::{
     collections::BTreeSet,
-    os::unix::process,
-    time::{Duration, SystemTime},
+    time::{Duration},
 };
 
 use talk::{crypto::Identity, time::timeout, unicast::Acknowledger};
@@ -11,7 +10,6 @@ use crate::{
     banking::banking::Banking,
     banking::transaction::Transaction,
     database::{
-        self,
         replica_database::{ReplicaDatabase, Set},
     },
     error::BankingError,
@@ -119,7 +117,7 @@ impl ReplicaHandler {
                     let pending_diff_nc_set = pending_diff_nc_set.into_iter();
 
                     for command in pending_diff_nc_set {
-                        self.rollback(&command);
+                        self.rollback(&command).expect("Rollback failed");
                         self.database.remove_result(&command);
                     }
 
@@ -295,6 +293,12 @@ impl ReplicaHandler {
                 }
             })
             .unwrap_or(Err(BankingError::UnsufficientBalance));
+        for transaction in self.database.log_mut().iter_mut() {
+            if transaction.id().eq(command.id()) {
+                transaction.rollback();
+                break;
+            }
+        }
         speculative_result
     }
 }
@@ -334,6 +338,7 @@ impl Handler<Message> for ReplicaHandler {
     }
 }
 
+#[cfg(test)]
 mod tests {
     use crate::banking::action::Action;
 
