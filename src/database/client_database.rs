@@ -56,7 +56,7 @@ impl ClientDatabase {
     pub fn complete_request(&mut self, request_id: &CommandId) -> Result<(), DatabaseError> {
         self.requests
             .remove(request_id)
-            .map(|res| ())
+            .map(|_res| ())
             .ok_or(DatabaseError::new("The request doesn't exist"))
     }
 

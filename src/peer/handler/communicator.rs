@@ -27,7 +27,7 @@ where
     feedback_inlet: FeedbackSender,
     network_info: NetworkInfo,
     identity_table: IdentityTable,
-    fuse: Fuse,
+    _fuse: Fuse,
 }
 
 impl<T> Communicator<T>
@@ -49,7 +49,7 @@ where
             feedback_inlet,
             network_info,
             identity_table,
-            fuse: Fuse::new(),
+            _fuse: Fuse::new(),
         }
     }
 
@@ -114,31 +114,13 @@ where
 #[cfg(test)]
 mod tests {
 
-    use talk::{time::timeout, unicast::test::UnicastSystem};
-    use tokio::join;
-
     use crate::{
         crypto::identity_table::IdentityTableBuilder,
-        network::network_info,
         talk::{FeedbackChannel, Message},
         tests::util::Utils,
     };
 
     use super::*;
-
-    async fn unicast_channel() -> (Identity, UnicastSender<Message>, UnicastReceiver<Message>) {
-        let UnicastSystem {
-            mut keys,
-            mut senders,
-            mut receivers,
-        } = UnicastSystem::<Message>::setup(1).await;
-
-        (
-            keys.pop().unwrap(),
-            senders.pop().unwrap(),
-            receivers.pop().unwrap(),
-        )
-    }
 
     #[tokio::test]
     async fn spawning_test() {}
@@ -149,7 +131,7 @@ mod tests {
         let (mut keys, mut senders, mut receivers) = Utils::mock_network(2).await;
         let (key, sender, _) = Utils::pop(&mut keys, &mut senders, &mut receivers);
         let (target, _, mut receiver) = Utils::pop(&mut keys, &mut senders, &mut receivers);
-        let (rx, mut tx) = FeedbackChannel::channel();
+        let (rx, mut _tx) = FeedbackChannel::channel();
         let communicator = Communicator::new(
             0,
             key.clone(),
@@ -158,7 +140,7 @@ mod tests {
             network_info.clone(),
             IdentityTableBuilder::new(network_info).build(),
         );
-        let send = communicator
+        let _ = communicator
             .spawn_send_message(target.clone(), Message::Testing)
             .await;
 

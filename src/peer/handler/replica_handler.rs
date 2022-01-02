@@ -231,7 +231,7 @@ impl ReplicaHandler {
             crate::banking::action::Action::Deposit(amount) => self
                 .banking
                 .deposit(&id, *amount)
-                .map(|res| CommandResult::Success(None))
+                .map(|_res| CommandResult::Success(None))
                 .unwrap_or(CommandResult::Failure(format!(
                     "Client #{} cannot deposit because he is not registered",
                     self.communicator.id()
@@ -239,7 +239,7 @@ impl ReplicaHandler {
             crate::banking::action::Action::Withdraw(amount) => self
                 .banking
                 .withdraw(&id, *amount)
-                .map(|amount| CommandResult::Success(None))
+                .map(|_amount| CommandResult::Success(None))
                 .unwrap_or_else(|err| match err {
                     BankingError::ClientNotFound => {
                         CommandResult::Failure(format!("Client #{} is not registered", id))
@@ -334,10 +334,7 @@ mod tests {
     use crate::{
         banking::action::Action,
         crypto::identity_table::IdentityTableBuilder,
-        peer::{
-            coordinator::{self, Coordinator},
-            handler::ClientHandler,
-        },
+        peer::{coordinator::Coordinator, handler::ClientHandler},
         talk::FeedbackChannel,
         tests::util::Utils,
     };
@@ -348,16 +345,14 @@ mod tests {
     async fn correctly_receives_incoming_commands() {
         let network_info = NetworkInfo::new(0, 3, 0, 0, 10, 1);
         let (mut keys, mut senders, mut receivers) = Utils::mock_network(3).await;
-        let (replica3, sender3, mut receiver3) =
+        let (replica3, _sender3, mut _receiver3) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
-        let (replica1, sender1, mut receiver1) =
+        let (replica1, sender1, mut _receiver1) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
-        let (replica2, sender2, mut receiver2) =
+        let (replica2, _sender2, mut _receiver2) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
 
-        let (rx1, mut tx1) = FeedbackChannel::channel();
-        let (rx2, mut tx2) = FeedbackChannel::channel();
-        let (rx3, mut tx3) = FeedbackChannel::channel();
+        let (rx1, mut _tx1) = FeedbackChannel::channel();
 
         let coordinator = Coordinator::new(network_info.clone());
 
@@ -372,32 +367,6 @@ mod tests {
                 replica1.clone(),
                 sender1,
                 rx1,
-                network_info.clone(),
-                identity_table.clone(),
-            ),
-            coordinator.proposer(),
-            coordinator.subscribe(),
-        );
-
-        let mut rh2 = ReplicaHandler::new(
-            Communicator::new(
-                0,
-                replica2.clone(),
-                sender2,
-                rx2,
-                network_info.clone(),
-                identity_table.clone(),
-            ),
-            coordinator.proposer(),
-            coordinator.subscribe(),
-        );
-
-        let mut rh3 = ReplicaHandler::new(
-            Communicator::new(
-                0,
-                replica3.clone(),
-                sender3,
-                rx3,
                 network_info.clone(),
                 identity_table.clone(),
             ),
@@ -416,16 +385,16 @@ mod tests {
         /* Template for a Network of 3 replicas */
         let network_info = NetworkInfo::new(0, 3, 0, 0, 10, 1);
         let (mut keys, mut senders, mut receivers) = Utils::mock_network(3).await;
-        let (replica3, sender3, mut receiver3) =
+        let (replica3, sender3, mut _receiver3) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
-        let (replica1, sender1, mut receiver1) =
+        let (replica1, sender1, mut _receiver1) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
-        let (replica2, sender2, mut receiver2) =
+        let (replica2, sender2, mut _receiver2) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
 
-        let (rx1, mut tx1) = FeedbackChannel::channel();
-        let (rx2, mut tx2) = FeedbackChannel::channel();
-        let (rx3, mut tx3) = FeedbackChannel::channel();
+        let (rx1, mut _tx1) = FeedbackChannel::channel();
+        let (rx2, mut _tx2) = FeedbackChannel::channel();
+        let (rx3, mut _tx3) = FeedbackChannel::channel();
 
         let coordinator = Coordinator::new(network_info.clone());
 
@@ -460,7 +429,7 @@ mod tests {
             coordinator.subscribe(),
         );
 
-        let mut rh3 = ReplicaHandler::new(
+        let mut _rh3 = ReplicaHandler::new(
             Communicator::new(
                 0,
                 replica3.clone(),
@@ -497,16 +466,16 @@ mod tests {
     async fn compute_correctly_unprocessed_commands() {
         let network_info = NetworkInfo::new(0, 3, 0, 0, 10, 1);
         let (mut keys, mut senders, mut receivers) = Utils::mock_network(3).await;
-        let (replica3, sender3, mut receiver3) =
+        let (replica3, sender3, mut _receiver3) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
-        let (replica1, sender1, mut receiver1) =
+        let (replica1, sender1, mut _receiver1) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
-        let (replica2, sender2, mut receiver2) =
+        let (replica2, sender2, mut _receiver2) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
 
-        let (rx1, mut tx1) = FeedbackChannel::channel();
-        let (rx2, mut tx2) = FeedbackChannel::channel();
-        let (rx3, mut tx3) = FeedbackChannel::channel();
+        let (rx1, mut _tx1) = FeedbackChannel::channel();
+        let (rx2, mut _tx2) = FeedbackChannel::channel();
+        let (rx3, mut _tx3) = FeedbackChannel::channel();
 
         let coordinator = Coordinator::new(network_info.clone());
 
@@ -528,7 +497,7 @@ mod tests {
             coordinator.subscribe(),
         );
 
-        let mut rh2 = ReplicaHandler::new(
+        let mut _rh2 = ReplicaHandler::new(
             Communicator::new(
                 0,
                 replica2.clone(),
@@ -541,7 +510,7 @@ mod tests {
             coordinator.subscribe(),
         );
 
-        let mut rh3 = ReplicaHandler::new(
+        let mut _rh3 = ReplicaHandler::new(
             Communicator::new(
                 0,
                 replica3.clone(),
@@ -601,16 +570,16 @@ mod tests {
     async fn correctly_acknowledge_client() {
         let network_info = NetworkInfo::new(1, 2, 0, 0, 10, 1);
         let (mut keys, mut senders, mut receivers) = Utils::mock_network(3).await;
-        let (replica3, sender3, mut receiver3) =
+        let (replica3, sender3, mut _receiver3) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
         let (replica1, sender1, mut receiver1) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
-        let (replica2, sender2, mut receiver2) =
+        let (replica2, sender2, mut _receiver2) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
 
-        let (rx1, mut tx1) = FeedbackChannel::channel();
-        let (rx2, mut tx2) = FeedbackChannel::channel();
-        let (rx3, mut tx3) = FeedbackChannel::channel();
+        let (rx1, mut _tx1) = FeedbackChannel::channel();
+        let (rx2, mut _tx2) = FeedbackChannel::channel();
+        let (rx3, mut _tx3) = FeedbackChannel::channel();
 
         let coordinator = Coordinator::new(network_info.clone());
 
@@ -619,7 +588,7 @@ mod tests {
             .add_peer(replica2.clone())
             .add_peer(replica3.clone())
             .build();
-        let mut client = ClientHandler::new(Communicator::new(
+        let mut _client = ClientHandler::new(Communicator::new(
             0,
             replica1.clone(),
             sender1,
@@ -628,7 +597,7 @@ mod tests {
             identity_table.clone(),
         ));
 
-        let mut rh2 = ReplicaHandler::new(
+        let rh2 = ReplicaHandler::new(
             Communicator::new(
                 1,
                 replica2.clone(),
@@ -641,7 +610,7 @@ mod tests {
             coordinator.subscribe(),
         );
 
-        let mut rh3 = ReplicaHandler::new(
+        let mut _rh3 = ReplicaHandler::new(
             Communicator::new(
                 2,
                 replica3.clone(),
@@ -691,21 +660,20 @@ mod tests {
     async fn correctly_recover_consensus() {
         let network_info = NetworkInfo::new(1, 3, 2, 0, 10, 3);
         let mut mock_network = UnicastSystem::<Message>::setup(6).await;
-        let (replica3, replica_sender3, mut replica_receiver3) =
+
+        let (client1, client_sender1, mut _client_receiver1) =
             Utils::pop_from_network(&mut mock_network);
-        let (client1, client_sender1, mut client_receiver1) =
+        let (replica2, replica_sender2, mut _replica_receiver2) =
             Utils::pop_from_network(&mut mock_network);
-        let (replica2, replica_sender2, mut replica_receiver2) =
+        let (replica1, _replica_sender1, mut _replica_receiver1) =
             Utils::pop_from_network(&mut mock_network);
-        let (replica1, replica_sender1, mut replica_receiver1) =
-            Utils::pop_from_network(&mut mock_network);
-        let (replica3, replica_sender3, mut replica_receiver3) =
+        let (replica3, replica_sender3, mut _replica_receiver3) =
             Utils::pop_from_network(&mut mock_network);
         // Faulty replica doesn't send anything
-        let (rx1, mut tx1) = FeedbackChannel::channel();
-        let (rx2, mut tx2) = FeedbackChannel::channel();
-        let (rx3, mut tx3) = FeedbackChannel::channel();
-        let (rx4, mut tx4) = FeedbackChannel::channel();
+        let (rx1, mut _tx1) = FeedbackChannel::channel();
+        let (rx2, mut _tx2) = FeedbackChannel::channel();
+        let (rx3, mut _tx3) = FeedbackChannel::channel();
+        let (_rx4, mut _tx4) = FeedbackChannel::channel();
 
         let coordinator = Coordinator::new(network_info.clone());
 
@@ -714,7 +682,7 @@ mod tests {
             .add_peer(replica2.clone())
             .add_peer(replica3.clone())
             .build();
-        let mut client = ClientHandler::new(Communicator::new(
+        let mut _client = ClientHandler::new(Communicator::new(
             0,
             client1.clone(),
             client_sender1,
@@ -723,7 +691,7 @@ mod tests {
             identity_table.clone(),
         ));
 
-        let mut rh2 = ReplicaHandler::new(
+        let mut _rh2 = ReplicaHandler::new(
             Communicator::new(
                 1,
                 replica2.clone(),
@@ -736,7 +704,7 @@ mod tests {
             coordinator.subscribe(),
         );
 
-        let mut rh3 = ReplicaHandler::new(
+        let mut _rh3 = ReplicaHandler::new(
             Communicator::new(
                 2,
                 replica3.clone(),
@@ -749,24 +717,20 @@ mod tests {
             coordinator.subscribe(),
         );
         // Replica handlers must be runned on different threads
-
-        coordinator;
     }
     #[tokio::test]
     async fn process_non_conflicting_commands_correctly() {
         let network_info = NetworkInfo::new(1, 3, 0, 2, 10, 3);
         let mut mock_network = UnicastSystem::<Message>::setup(6).await;
-        let (replica3, replica_sender3, mut replica_receiver3) =
+        let (client1, _cli_ent_sender1, mut client_receiver1) =
             Utils::pop_from_network(&mut mock_network);
-        let (client1, client_sender1, mut client_receiver1) =
-            Utils::pop_from_network(&mut mock_network);
-        let (replica2, replica_sender2, mut replica_receiver2) =
+        let (replica2, _replica_sender2, mut replica_receiver2) =
             Utils::pop_from_network(&mut mock_network);
         let (replica1, replica_sender1, mut replica_receiver1) =
             Utils::pop_from_network(&mut mock_network);
-        let (replica3, replica_sender3, mut replica_receiver3) =
+        let (replica3, _replica_sender3, mut replica_receiver3) =
             Utils::pop_from_network(&mut mock_network);
-        let (rx1, mut tx1) = FeedbackChannel::channel();
+        let (rx1, mut _tx1) = FeedbackChannel::channel();
 
         println!(
             "Client: {:#?} \n R1: {:#?} \n R2: {:#?}, \n, R3: {:#?} \n",
@@ -891,17 +855,15 @@ mod tests {
     async fn execute_correctly() {
         let network_info = NetworkInfo::new(1, 3, 0, 2, 10, 3);
         let mut mock_network = UnicastSystem::<Message>::setup(6).await;
-        let (replica3, replica_sender3, mut replica_receiver3) =
+        let (client1, _client_sender1, mut _client_receiver1) =
             Utils::pop_from_network(&mut mock_network);
-        let (client1, client_sender1, mut client_receiver1) =
+        let (replica2, _replica_sender2, mut _replica_receiver2) =
             Utils::pop_from_network(&mut mock_network);
-        let (replica2, replica_sender2, mut replica_receiver2) =
+        let (replica1, replica_sender1, mut _replica_receiver1) =
             Utils::pop_from_network(&mut mock_network);
-        let (replica1, replica_sender1, mut replica_receiver1) =
+        let (replica3, _replica_sender3, mut _replica_receiver3) =
             Utils::pop_from_network(&mut mock_network);
-        let (replica3, replica_sender3, mut replica_receiver3) =
-            Utils::pop_from_network(&mut mock_network);
-        let (rx1, mut tx1) = FeedbackChannel::channel();
+        let (rx1, mut _tx1) = FeedbackChannel::channel();
 
         println!(
             "Client: {:#?} \n R1: {:#?} \n R2: {:#?}, \n, R3: {:#?} \n",
@@ -983,15 +945,15 @@ mod tests {
     async fn correctly_rollback_commands() {
         let network_info = NetworkInfo::new(1, 3, 0, 2, 10, 3);
         let mut mock_network = UnicastSystem::<Message>::setup(6).await;
-        let (client1, client_sender1, mut client_receiver1) =
+        let (client1, _client_sender1, mut _client_receiver1) =
             Utils::pop_from_network(&mut mock_network);
-        let (replica2, replica_sender2, mut replica_receiver2) =
+        let (replica2, _replica_sender2, mut _replica_receiver2) =
             Utils::pop_from_network(&mut mock_network);
-        let (replica1, replica_sender1, mut replica_receiver1) =
+        let (replica1, replica_sender1, mut _replica_receiver1) =
             Utils::pop_from_network(&mut mock_network);
-        let (replica3, replica_sender3, mut replica_receiver3) =
+        let (replica3, _replica_sender3, mut _replica_receiver3) =
             Utils::pop_from_network(&mut mock_network);
-        let (rx1, mut tx1) = FeedbackChannel::channel();
+        let (rx1, mut _tx1) = FeedbackChannel::channel();
 
         println!(
             "Client: {:#?} \n R1: {:#?} \n R2: {:#?}, \n, R3: {:#?} \n",
@@ -1023,12 +985,12 @@ mod tests {
 
         let registration = Command::new(0, Action::Register);
         let deposit = Command::new(0, Action::Deposit(10));
-        let get = Command::new(0, Action::Get);
+        let _get = Command::new(0, Action::Get);
         let withdraw = Command::new(0, Action::Withdraw(5));
 
         let res = replica.execute(&registration);
         replica.database.add_result(registration.clone(), res);
-        let rollback = replica
+        let __rollback = replica
             .rollback(&registration)
             .expect("Unregister should be successful");
         assert_eq!(replica.banking.get(&0), None);
@@ -1061,22 +1023,22 @@ mod tests {
     async fn correctly_execute_conflicting_messages() {
         let network_info = NetworkInfo::new(2, 3, 0, 2, 10, 3);
         let mut mock_network = UnicastSystem::<Message>::setup(7).await;
-        let (client1, client_sender1, mut client_receiver1) =
+        let (client1, _client_sender1, mut client_receiver1) =
             Utils::pop_from_network(&mut mock_network);
-        let (client2, client_sender2, mut client_receiver2) =
+        let (client2, _client_sender2, mut client_receiver2) =
             Utils::pop_from_network(&mut mock_network);
-        let (replica2, replica_sender2, mut replica_receiver2) =
+        let (replica2, _replica_sender2, replica_receiver2) =
             Utils::pop_from_network(&mut mock_network);
-        let (replica1, replica_sender1, mut replica_receiver1) =
+        let (replica1, replica_sender1, _replica_receiver1) =
             Utils::pop_from_network(&mut mock_network);
-        let (replica3, replica_sender3, mut replica_receiver3) =
+        let (replica3, _replica_sender3, replica_receiver3) =
             Utils::pop_from_network(&mut mock_network);
-        let (faulty_replica1, faulty_replica_sender1, mut faulty_replica_receiver1) =
+        let (faulty_replica1, _faulty_replica_sender1, faulty_replica_receiver1) =
             Utils::pop_from_network(&mut mock_network);
-        let (faulty_replica2, faulty_replica_sender2, mut faulty_replica_receiver2) =
+        let (faulty_replica2, _faulty_replica_sender2, faulty_replica_receiver2) =
             Utils::pop_from_network(&mut mock_network);
 
-        let (rx1, mut tx1) = FeedbackChannel::channel();
+        let (rx1, mut _tx1) = FeedbackChannel::channel();
 
         println!(
             "Client: {:#?} \n R1: {:#?} \n R2: {:#?}, \n, R3: {:#?} \n",
@@ -1178,7 +1140,7 @@ mod tests {
         c_set.insert(cmd13.clone());
         // Spawn a coordinator, that broadcast a predefined result when he receives the message
         tokio::spawn(async move {
-            if let Some((id, k, nc, c)) = coordinator.receiver().recv().await {
+            if let Some(_) = coordinator.receiver().recv().await {
                 coordinator
                     .broadcaster()
                     .send((3, nc_set.clone(), c_set.clone()))

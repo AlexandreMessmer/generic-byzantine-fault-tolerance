@@ -51,7 +51,7 @@ impl Banking {
     }
 
     /// Transfer an amount of coins from one client to another. Returns true if the transfer is successful (and feasible)
-    fn transfer_to(&mut self, from: &PeerId, to: &PeerId, amount: Money) -> bool {
+    fn _transfer_to(&mut self, from: &PeerId, to: &PeerId, amount: Money) -> bool {
         if self.clients.contains_key(from) && self.clients.contains_key(to) {
             let from_amout = self.clients.get_mut(from).unwrap();
             if *from_amout >= amount {
@@ -85,9 +85,6 @@ impl Banking {
 
 #[cfg(test)]
 mod tests {
-
-    use crate::banking;
-
     use super::*;
 
     #[test]
@@ -128,18 +125,18 @@ mod tests {
 
         banking.clients.insert(client1.clone(), 30);
 
-        assert_eq!(banking.transfer_to(&client1, &client2, 0), false);
+        assert_eq!(banking._transfer_to(&client1, &client2, 0), false);
 
-        assert_eq!(banking.transfer_to(&client2, &client1, 11), false);
+        assert_eq!(banking._transfer_to(&client2, &client1, 11), false);
         banking.clients.insert(client2.clone(), 1);
 
-        assert_eq!(banking.transfer_to(&client1, &client2, 20), true);
+        assert_eq!(banking._transfer_to(&client1, &client2, 20), true);
 
         assert_eq!(*banking.clients.get(&client1).unwrap(), 10);
         assert_eq!(*banking.clients.get(&client2).unwrap(), 21);
 
-        assert_eq!(banking.transfer_to(&client1, &client2, 11), false);
-        assert_eq!(banking.transfer_to(&client1, &client2, 10), true);
+        assert_eq!(banking._transfer_to(&client1, &client2, 11), false);
+        assert_eq!(banking._transfer_to(&client1, &client2, 10), true);
     }
 
     #[test]
@@ -147,7 +144,7 @@ mod tests {
         let mut banking = Banking::new();
         banking.clients.insert(1, 40);
 
-        let w = banking.withdraw(&1, 30).unwrap();
+        banking.withdraw(&1, 30).unwrap();
         assert_eq!(banking.get(&1), Some(10));
 
         let w = banking.withdraw(&1, 11).unwrap_err();

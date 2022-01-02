@@ -2,10 +2,9 @@ use talk::{crypto::Identity, unicast::Acknowledger};
 
 use crate::{
     database::client_database::{ClientDatabase, RequestResult},
-    error::DatabaseError,
     network::NetworkInfo,
     peer::peer::PeerId,
-    talk::{Command, CommandId, CommandResult, Feedback, Instruction, Message, Phase},
+    talk::{Command, CommandId, Feedback, Instruction, Message, Phase},
 };
 
 use super::{Communicator, Handler};
@@ -128,10 +127,10 @@ mod tests {
 
     use crate::{
         banking::action::Action,
-        crypto::identity_table::{self, IdentityTableBuilder},
+        crypto::identity_table::IdentityTableBuilder,
         network::NetworkInfo,
         peer::handler::{Communicator, Handler},
-        talk::{Command, FeedbackChannel, Instruction, Message},
+        talk::{Command, CommandResult, FeedbackChannel, Message},
         tests::util::Utils,
     };
 
@@ -142,10 +141,10 @@ mod tests {
         /* Template to build a ClientHandler */
         let network_info = NetworkInfo::new(1, 2, 0, 0, 10, 1);
         let (mut keys, mut senders, mut receivers) = Utils::mock_network(3).await;
-        let (client, sender, mut receiver) = Utils::pop(&mut keys, &mut senders, &mut receivers);
-        let (replica1, sender1, mut receiver1) =
+        let (client, sender, mut _receiver) = Utils::pop(&mut keys, &mut senders, &mut receivers);
+        let (replica1, _sender1, mut receiver1) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
-        let (replica2, sender2, mut receiver2) =
+        let (replica2, _sender2, mut receiver2) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
 
         let (rx, mut tx) = FeedbackChannel::channel();
@@ -192,9 +191,9 @@ mod tests {
         let network_info = NetworkInfo::new(1, 2, 0, 0, 10, 7);
         let (mut keys, mut senders, mut receivers) = Utils::mock_network(3).await;
         let (client, sender, mut receiver) = Utils::pop(&mut keys, &mut senders, &mut receivers);
-        let (replica1, sender1, mut receiver1) =
+        let (replica1, sender1, mut _receiver1) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
-        let (replica2, sender2, mut receiver2) =
+        let (replica2, _sender2, mut _receiver2) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
 
         let (rx, mut tx) = FeedbackChannel::channel();
