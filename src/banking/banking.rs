@@ -1,10 +1,6 @@
 use std::collections::HashMap;
 
-
-
 use crate::{error::BankingError, peer::peer::PeerId};
-
-
 
 pub type Money = u64;
 
@@ -44,12 +40,12 @@ impl Banking {
     }
 
     /// Deposit the amount into the client account. Returns true if the deposit is successful, false otherwise.
-    pub fn deposit(&mut self, client: &PeerId, amount: Money) -> Result<Money, BankingError> {
+    pub fn deposit(&mut self, client: &PeerId, amount: Money) -> Result<(), BankingError> {
         self.clients
             .get_mut(client)
             .map(|current| {
                 *current += amount;
-                *current
+                ()
             })
             .ok_or(BankingError::ClientNotFound)
     }
@@ -69,13 +65,13 @@ impl Banking {
         false
     }
 
-    pub fn withdraw(&mut self, client: &PeerId, amount: Money) -> Result<Money, BankingError> {
+    pub fn withdraw(&mut self, client: &PeerId, amount: Money) -> Result<(), BankingError> {
         self.clients
             .get_mut(client)
             .map(|current| {
                 if *current >= amount {
                     *current -= amount;
-                    return Ok(*current);
+                    return Ok(());
                 }
                 Err(BankingError::UnsufficientBalance)
             })
@@ -85,6 +81,7 @@ impl Banking {
     pub fn get(&self, client: &PeerId) -> Option<Money> {
         self.clients.get(client).map(|value| *value)
     }
+
 }
 
 #[cfg(test)]
@@ -117,8 +114,8 @@ mod tests {
 
         banking.clients.insert(identity.clone(), 30);
 
-        if let Ok(some) = banking.deposit(&identity, 77) {
-            assert_eq!(some, 107);
+        if let Ok(_) = banking.deposit(&identity, 77) {
+            assert_eq!(banking.get(&identity), Some(107));
         } else {
             panic!();
         }
@@ -152,12 +149,15 @@ mod tests {
         banking.clients.insert(1, 40);
 
         let w = banking.withdraw(&1, 30).unwrap();
-        assert_eq!(w, 10);
+        assert_eq!(banking.get(&1), Some(10));
 
         let w = banking.withdraw(&1, 11).unwrap_err();
         assert_eq!(w, BankingError::UnsufficientBalance);
 
-        assert_eq!(banking.withdraw(&2, 0).unwrap_err(), BankingError::ClientNotFound);
+        assert_eq!(
+            banking.withdraw(&2, 0).unwrap_err(),
+            BankingError::ClientNotFound
+        );
     }
 
     #[test]

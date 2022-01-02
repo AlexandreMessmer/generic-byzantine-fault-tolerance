@@ -18,10 +18,7 @@ pub use replica_handler::ReplicaHandler;
 
 use crate::{talk::Instruction, types::*};
 
-use super::{
-    coordinator::{Coordinator},
-    peer::PeerId,
-};
+use super::{coordinator::Coordinator, peer::PeerId};
 
 #[async_trait::async_trait]
 pub trait Handler<T>: Sync + Send

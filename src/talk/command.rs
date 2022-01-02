@@ -1,5 +1,3 @@
-
-
 use serde::{Deserialize, Serialize};
 
 use uuid::Uuid;
@@ -14,9 +12,9 @@ use super::CommandId;
 
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Command {
-    id: CommandId,
     issuer: PeerId,
     action: Action,
+    id: CommandId,
 }
 
 impl Command {
@@ -34,7 +32,7 @@ impl Command {
     }
 
     pub fn issuer(&self) -> &PeerId {
-        todo!()
+        &self.issuer
     }
 
     pub fn action(&self) -> &Action {

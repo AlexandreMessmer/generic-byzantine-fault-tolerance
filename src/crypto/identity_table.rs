@@ -1,4 +1,4 @@
-use std::ops::{Range};
+use std::ops::Range;
 
 use crate::{network::NetworkInfo, peer::peer::PeerId};
 use talk::crypto::Identity;

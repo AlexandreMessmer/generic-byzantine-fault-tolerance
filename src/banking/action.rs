@@ -1,8 +1,6 @@
-use std::fmt::Display;
+use std::{fmt::Display, cmp::Ordering};
 
 use serde::{Deserialize, Serialize};
-
-
 
 use super::banking::Money;
 
@@ -22,5 +20,16 @@ impl Display for Action {
             Action::Deposit(amount) => write!(f, "Deposit {}", amount),
             Action::Withdraw(amount) => write!(f, "Withdraw {}", amount),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn comp() {
+        println!("{:?}", Action::Register.cmp(&Action::Register));
+        println!("{:?}", Action::Deposit(10).cmp(&Action::Withdraw(10)));
+
     }
 }

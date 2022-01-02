@@ -1,6 +1,4 @@
-
 use talk::unicast::Message;
-
 
 use super::{handler::Handler, runner::Runner};
 use crate::{network::network_info::NetworkInfo, talk::Instruction, types::*};
@@ -65,7 +63,7 @@ where
                         Instruction::Shutdown => {
                             break;
                         },
-                        _ => {handler.handle_instruction(instruction).await},
+                        _ => handler.handle_instruction(instruction).await,
                     }
                 }
             }

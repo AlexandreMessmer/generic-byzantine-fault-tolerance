@@ -1,6 +1,4 @@
-use std::{
-    collections::{BTreeSet, HashMap},
-};
+use std::collections::{BTreeSet, HashMap};
 
 use crate::{
     banking::transaction::Transaction,
@@ -87,6 +85,10 @@ impl ReplicaDatabase {
         &self.pending
     }
 
+    pub fn pending_mut(&mut self) -> &mut Set {
+        &mut self.pending
+    }
+
     pub fn results(&self) -> &ResultBuffer {
         &self.results
     }
@@ -115,8 +117,12 @@ impl ReplicaDatabase {
         self.log.push(transaction)
     }
 
-    pub fn log_mut(&mut self) -> &mut Vec<Transaction> {
+    pub fn logs_mut(&mut self) -> &mut Vec<Transaction> {
         &mut self.log
+    }
+
+    pub fn logs(&self) -> &Vec<Transaction> {
+        &self.log
     }
 }
 

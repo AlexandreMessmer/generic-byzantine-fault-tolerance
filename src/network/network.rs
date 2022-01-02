@@ -6,10 +6,9 @@ use futures::future::join_all;
 
 use talk::time::{timeout, Timeout};
 use talk::{crypto::Identity, sync::fuse::Fuse, unicast::test::UnicastSystem};
+use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::SendError;
-use tokio::sync::{mpsc};
 use tokio::task::JoinHandle;
-
 
 use super::{NetworkInfo, NetworkPeer};
 
@@ -243,11 +242,7 @@ impl Drop for Network {
 #[cfg(test)]
 mod tests {
 
-    use std::time::{Duration};
-
-    
-
-    
+    use std::time::Duration;
 
     use super::*;
 

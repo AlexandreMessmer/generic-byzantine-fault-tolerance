@@ -1,6 +1,8 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
+use std::time::Duration;
 
 use talk::crypto::Identity;
+use tokio::sync::broadcast::error::SendError;
 use tokio::sync::broadcast::{self, Receiver as BroadcastReceiver, Sender as BroadcastSender};
 use tokio::sync::mpsc;
 
@@ -140,9 +142,24 @@ impl Coordinator {
         None
     }
 
+    async fn broadcast(&self, k: RoundNumber, nc_set: BTreeSet<Command>, c_set: BTreeSet<Command>) -> Result<usize, SendError<ProposalData>> {
+        tokio::time::sleep(Duration::from_millis(self.network_info.transmition_delay() * self.network_info.consensus_slowdown())).await;
+        self.broadcaster.send((k, nc_set, c_set))
+    }
     pub fn received(&self) -> &ReceivedMap {
         &self.received
     }
+
+    #[cfg(test)]
+    pub fn receiver(&mut self) -> &mut MPSCReceiver<ProposalSignedData> {
+        &mut self.receiver
+    }
+
+    #[cfg(test)]
+    pub fn broadcaster(&self) -> &BroadcastSender<ProposalData> {
+        &self.broadcaster
+    }
+
 }
 
 #[async_trait::async_trait]
@@ -152,7 +169,7 @@ impl Runner for Coordinator {
             let (_, k, _, _) = data;
             let proposition = self.propose(data);
             if let Some((nc_set, c_set)) = proposition {
-                self.broadcaster.send((k, nc_set, c_set)).unwrap();
+                self.broadcast(k, nc_set, c_set).await.unwrap();
             }
         }
     }
@@ -162,11 +179,7 @@ impl Runner for Coordinator {
 mod tests {
     use talk::unicast::test::UnicastSystem;
 
-    use crate::{
-        banking::action::Action,
-        network::{network::Network},
-        talk::Message,
-    };
+    use crate::{banking::action::Action, network::network::Network, talk::Message};
 
     use super::*;
 

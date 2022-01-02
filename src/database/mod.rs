@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use crate::talk::CommandResult;
 use crate::{
-    error::{DatabaseError},
+    error::DatabaseError,
     talk::{CommandId, Message},
 };
 

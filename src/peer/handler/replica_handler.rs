@@ -1,17 +1,13 @@
-use std::{
-    collections::BTreeSet,
-    time::{Duration},
-};
+use std::{collections::BTreeSet, time::Duration};
 
-use talk::{crypto::Identity, time::timeout, unicast::Acknowledger};
+use talk::{crypto::Identity, unicast::Acknowledger};
 use tokio::sync::broadcast::error::RecvError;
+use tokio::time::timeout;
 
 use crate::{
     banking::banking::Banking,
     banking::transaction::Transaction,
-    database::{
-        replica_database::{ReplicaDatabase, Set},
-    },
+    database::replica_database::{ReplicaDatabase, Set},
     error::BankingError,
     network::NetworkInfo,
     peer::{
@@ -55,13 +51,13 @@ impl ReplicaHandler {
     fn handle_replica_broadcast(
         &mut self,
         round: RoundNumber,
-        set: BTreeSet<Command>,
+        set: &BTreeSet<Command>,
         phase: Phase,
     ) {
         if round.eq(self.database.round()) {
             match phase {
-                Phase::ACK => self.database.receive_set(&set),
-                Phase::CHK => self.database.receive_set(&set),
+                Phase::ACK => self.database.receive_set(set),
+                Phase::CHK => self.database.receive_set(set),
             }
         }
     }
@@ -88,11 +84,10 @@ impl ReplicaHandler {
     async fn process_commands(&mut self) {
         let (unprocessed_commands, received_diff_delivered) = self.compute_unprocessed_commands();
         if Self::is_pending(&unprocessed_commands) {
-            if !Self::is_there_conflict(&received_diff_delivered, &received_diff_delivered) {
+            if !Self::is_there_conflict(&received_diff_delivered) {
                 let unprocessed_commands = unprocessed_commands.into_iter();
                 for command in unprocessed_commands {
                     let result = self.execute(&command);
-                    self.database.add_result(command.clone(), result.clone());
                     self.acknowledge_client(command, result, Phase::ACK).await;
                 }
 
@@ -118,7 +113,6 @@ impl ReplicaHandler {
 
                     for command in pending_diff_nc_set {
                         self.rollback(&command).expect("Rollback failed");
-                        self.database.remove_result(&command);
                     }
 
                     let nc_set_diff_delivered: Set = nc_set
@@ -173,7 +167,7 @@ impl ReplicaHandler {
             .get_client_id(*command.issuer())
         {
             self.communicator
-                .spawn_send(
+                .spawn_send_message(
                     key.clone(),
                     Message::CommandAcknowledgement(
                         command,
@@ -189,6 +183,7 @@ impl ReplicaHandler {
         false
     }
 
+    /// Warning: It will block if mutliple replicas are spawned on the same thread
     async fn propose(&mut self, data: ProposalSignedData) -> Result<ProposalData, RecvError> {
         self.proposal_inlet.send(data).await.unwrap();
         self.proposal_outlet.recv().await
@@ -197,32 +192,26 @@ impl ReplicaHandler {
     async fn broadcast_to_replicas(&self, set: Set, phase: Phase) {
         let message = Message::ReplicaBroadcast(*self.database.round(), set, phase);
         let replicas = self.communicator.identity_table().replicas();
-        for replica in replicas {
+        for replica in replicas.iter() {
             if !self.communicator.key().eq(replica) {
                 self.communicator
-                    .spawn_send(replica.clone(), message.clone())
+                    .spawn_send_message(replica.clone(), message.clone())
                     .await;
             }
         }
     }
 
-    fn is_there_conflict(set1: &Set, set2: &Set) -> bool {
-        let set1 = set1.into_iter();
-        let mut set2 = set2.into_iter();
-        for elem in set1 {
-            if !set2.all(|item| !item.conflict(elem)) {
-                return true;
-            }
-        }
-
-        return false;
+    fn is_there_conflict(set: &Set) -> bool {
+        let set1 = set.clone().into_iter();
+        let mut set = set1.zip(set.into_iter());
+        set.any(|(e1, e2)| e1.conflict(e2))
     }
 
     /// Execute the given command, and stores the transaction in the log.
     /// Returns the result
     fn execute(&mut self, command: &Command) -> CommandResult {
         let action = command.action();
-        let id = *self.communicator.id();
+        let id = *command.issuer();
         let result = match action {
             crate::banking::action::Action::Register => {
                 if self.banking.register(id) {
@@ -242,7 +231,7 @@ impl ReplicaHandler {
             crate::banking::action::Action::Deposit(amount) => self
                 .banking
                 .deposit(&id, *amount)
-                .map(|res| CommandResult::Success(Some(res)))
+                .map(|res| CommandResult::Success(None))
                 .unwrap_or(CommandResult::Failure(format!(
                     "Client #{} cannot deposit because he is not registered",
                     self.communicator.id()
@@ -250,7 +239,7 @@ impl ReplicaHandler {
             crate::banking::action::Action::Withdraw(amount) => self
                 .banking
                 .withdraw(&id, *amount)
-                .map(|amount| CommandResult::Success(Some(amount)))
+                .map(|amount| CommandResult::Success(None))
                 .unwrap_or_else(|err| match err {
                     BankingError::ClientNotFound => {
                         CommandResult::Failure(format!("Client #{} is not registered", id))
@@ -262,17 +251,17 @@ impl ReplicaHandler {
         };
         self.database
             .log(Transaction::from_command(command, &result));
+        self.database.add_result(command.clone(), result.clone());
         return result;
     }
 
     fn rollback(&mut self, command: &Command) -> Result<(), BankingError> {
         let action = command.action();
-        let id = self.communicator.id();
+        let id = command.issuer();
         let banking = &mut self.banking;
         let speculative_result = self
             .database
-            .results()
-            .get(command)
+            .remove_result(&command)
             .map(|result| {
                 match result {
                     // Only rollback the effect if the command was successful
@@ -292,8 +281,8 @@ impl ReplicaHandler {
                     CommandResult::Failure(_) => Ok(()),
                 }
             })
-            .unwrap_or(Err(BankingError::UnsufficientBalance));
-        for transaction in self.database.log_mut().iter_mut() {
+            .unwrap_or(Err(BankingError::ClientNotFound));
+        for transaction in self.database.logs_mut().iter_mut() {
             if transaction.id().eq(command.id()) {
                 transaction.rollback();
                 break;
@@ -312,7 +301,7 @@ impl Handler<Message> for ReplicaHandler {
             }
             Message::Command(command) => self.handle_command(command),
             Message::ReplicaBroadcast(k, set, phase) => {
-                self.handle_replica_broadcast(k, set, phase)
+                self.handle_replica_broadcast(k, &set, phase)
             }
             _ => {}
         }
@@ -340,17 +329,864 @@ impl Handler<Message> for ReplicaHandler {
 
 #[cfg(test)]
 mod tests {
-    use crate::banking::action::Action;
+    use talk::unicast::test::UnicastSystem;
+
+    use crate::{banking::action::Action, tests::util::Utils, talk::FeedbackChannel, crypto::identity_table::IdentityTableBuilder, peer::{coordinator::{self, Coordinator}, handler::ClientHandler}};
 
     use super::*;
 
-    #[test]
-    fn borrow_test_checker() {
+    #[tokio::test]
+    async fn correctly_receives_incoming_commands() {
+        let network_info = NetworkInfo::new(0, 3, 0, 0, 10, 1);
+        let (mut keys, mut senders, mut receivers) = Utils::mock_network(3).await;
+        let (replica3, sender3, mut receiver3) = Utils::pop(&mut keys, &mut senders, &mut receivers);
+        let (replica1, sender1, mut receiver1) =
+            Utils::pop(&mut keys, &mut senders, &mut receivers);
+        let (replica2, sender2, mut receiver2) =
+            Utils::pop(&mut keys, &mut senders, &mut receivers);
+
+        let (rx1, mut tx1) = FeedbackChannel::channel();
+        let (rx2, mut tx2) = FeedbackChannel::channel();
+        let (rx3, mut tx3) = FeedbackChannel::channel();
+
+        let coordinator = Coordinator::new(network_info.clone());
+
+        let identity_table = IdentityTableBuilder::new(network_info.clone())
+            .add_peer(replica1.clone())
+            .add_peer(replica2.clone())
+            .add_peer(replica3.clone())
+            .build();
+        let mut rh1 = ReplicaHandler::new(Communicator::new(
+            0,
+            replica1.clone(),
+            sender1,
+            rx1,
+            network_info.clone(),
+            identity_table.clone(),
+        ),
+        coordinator.proposer(),
+        coordinator.subscribe());
+
+        let mut rh2 = ReplicaHandler::new(Communicator::new(
+            0,
+            replica2.clone(),
+            sender2,
+            rx2,
+            network_info.clone(),
+            identity_table.clone(),
+        ),
+        coordinator.proposer(),
+        coordinator.subscribe());
+
+        let mut rh3 = ReplicaHandler::new(Communicator::new(
+            0,
+            replica3.clone(),
+            sender3,
+            rx3,
+            network_info.clone(),
+            identity_table.clone(),
+        ),
+        coordinator.proposer(),
+        coordinator.subscribe());
+
+        let cmd = Command::new(0, Action::Register);
+        rh1.handle_command(cmd.clone());
+
+        assert_eq!(rh1.database.received().contains(&cmd), true);
+    }
+
+    #[tokio::test]
+    async fn correctly_receives_broadcast() {
+        /* Template for a Network of 3 replicas */
+        let network_info = NetworkInfo::new(0, 3, 0, 0, 10, 1);
+        let (mut keys, mut senders, mut receivers) = Utils::mock_network(3).await;
+        let (replica3, sender3, mut receiver3) = Utils::pop(&mut keys, &mut senders, &mut receivers);
+        let (replica1, sender1, mut receiver1) =
+            Utils::pop(&mut keys, &mut senders, &mut receivers);
+        let (replica2, sender2, mut receiver2) =
+            Utils::pop(&mut keys, &mut senders, &mut receivers);
+
+        let (rx1, mut tx1) = FeedbackChannel::channel();
+        let (rx2, mut tx2) = FeedbackChannel::channel();
+        let (rx3, mut tx3) = FeedbackChannel::channel();
+
+        let coordinator = Coordinator::new(network_info.clone());
+
+        let identity_table = IdentityTableBuilder::new(network_info.clone())
+            .add_peer(replica1.clone())
+            .add_peer(replica2.clone())
+            .add_peer(replica3.clone())
+            .build();
+        let mut rh1 = ReplicaHandler::new(Communicator::new(
+            0,
+            replica1.clone(),
+            sender1,
+            rx1,
+            network_info.clone(),
+            identity_table.clone(),
+        ),
+        coordinator.proposer(),
+        coordinator.subscribe());
+
+        let mut rh2 = ReplicaHandler::new(Communicator::new(
+            0,
+            replica2.clone(),
+            sender2,
+            rx2,
+            network_info.clone(),
+            identity_table.clone(),
+        ),
+        coordinator.proposer(),
+        coordinator.subscribe());
+
+        let mut rh3 = ReplicaHandler::new(Communicator::new(
+            0,
+            replica3.clone(),
+            sender3,
+            rx3,
+            network_info.clone(),
+            identity_table.clone(),
+        ),
+        coordinator.proposer(),
+        coordinator.subscribe());
+        /* ______________________ */
+
+        let cmd1 = Command::new(4, Action::Register);
+        let cmd2 = Command::new(5, Action::Register);
         let mut set: Set = BTreeSet::new();
-        for _ in 0..15 {
-            set.insert(Command::new(0, Action::Register));
+        set.insert(cmd1.clone());
+        set.insert(cmd2.clone());
+        
+        rh1.handle_replica_broadcast(*rh1.database.round(), &set, Phase::ACK);
+
+        for cmd in set.iter() {
+            assert_eq!(rh1.database.received().contains(cmd), true);
         }
 
-        ReplicaHandler::is_there_conflict(&set, &set);
+        rh2.handle_replica_broadcast(12345, &set, Phase::ACK);
+
+        for cmd in set.iter() {
+            assert_eq!(rh2.database.received().contains(cmd), false);
+        }
     }
+
+    #[tokio::test]
+    async fn compute_correctly_unprocessed_commands() {
+        let network_info = NetworkInfo::new(0, 3, 0, 0, 10, 1);
+        let (mut keys, mut senders, mut receivers) = Utils::mock_network(3).await;
+        let (replica3, sender3, mut receiver3) = Utils::pop(&mut keys, &mut senders, &mut receivers);
+        let (replica1, sender1, mut receiver1) =
+            Utils::pop(&mut keys, &mut senders, &mut receivers);
+        let (replica2, sender2, mut receiver2) =
+            Utils::pop(&mut keys, &mut senders, &mut receivers);
+
+        let (rx1, mut tx1) = FeedbackChannel::channel();
+        let (rx2, mut tx2) = FeedbackChannel::channel();
+        let (rx3, mut tx3) = FeedbackChannel::channel();
+
+        let coordinator = Coordinator::new(network_info.clone());
+
+        let identity_table = IdentityTableBuilder::new(network_info.clone())
+            .add_peer(replica1.clone())
+            .add_peer(replica2.clone())
+            .add_peer(replica3.clone())
+            .build();
+        let mut rh1 = ReplicaHandler::new(Communicator::new(
+            0,
+            replica1.clone(),
+            sender1,
+            rx1,
+            network_info.clone(),
+            identity_table.clone(),
+        ),
+        coordinator.proposer(),
+        coordinator.subscribe());
+
+        let mut rh2 = ReplicaHandler::new(Communicator::new(
+            0,
+            replica2.clone(),
+            sender2,
+            rx2,
+            network_info.clone(),
+            identity_table.clone(),
+        ),
+        coordinator.proposer(),
+        coordinator.subscribe());
+
+        let mut rh3 = ReplicaHandler::new(Communicator::new(
+            0,
+            replica3.clone(),
+            sender3,
+            rx3,
+            network_info.clone(),
+            identity_table.clone(),
+        ),
+        coordinator.proposer(),
+        coordinator.subscribe());
+
+        let cmd1 = Command::new(5, Action::Register);
+        let cmd2 = Command::new(4, Action::Get);
+        let cmd3 = Command::new(5, Action::Deposit(0));
+        let cmd4 = Command::new(6, Action::Deposit(1));
+        let cmd5 = Command::new(7, Action::Deposit(2));
+        let cmd6 = Command::new(8, Action::Withdraw(6));
+
+        let vec = vec![cmd1.clone(), cmd2.clone(), cmd3.clone(), cmd4.clone(), cmd5.clone(), cmd6.clone()];
+        let db = &mut rh1.database;
+
+        for cmd in vec.iter() {
+            db.received_mut().insert(cmd.clone());
+        }
+
+        db.delivered_mut().insert(cmd1.clone());
+        db.delivered_mut().insert(cmd2.clone());
+
+        db.pending_mut().insert(cmd3.clone());
+        db.pending_mut().insert(cmd4.clone());
+
+        let db = &rh1.database;
+        let (unprocessed, received_dif_del) = rh1.compute_unprocessed_commands();
+
+        assert_eq!(unprocessed.contains(&cmd5), true);
+        assert_eq!(unprocessed.contains(&cmd6), true);
+        assert_eq!(unprocessed.contains(&cmd4), false);
+
+        for cmd in vec.iter() {
+            if !db.delivered().contains(cmd) {
+                assert_eq!(received_dif_del.contains(cmd), true);
+            }
+            else {
+                assert_eq!(received_dif_del.contains(cmd), false);
+            }
+        }
+    }
+
+    #[tokio::test]
+    async fn correctly_acknowledge_client() {
+        let network_info = NetworkInfo::new(1, 2, 0, 0, 10, 1);
+        let (mut keys, mut senders, mut receivers) = Utils::mock_network(3).await;
+        let (replica3, sender3, mut receiver3) = Utils::pop(&mut keys, &mut senders, &mut receivers);
+        let (replica1, sender1, mut receiver1) =
+            Utils::pop(&mut keys, &mut senders, &mut receivers);
+        let (replica2, sender2, mut receiver2) =
+            Utils::pop(&mut keys, &mut senders, &mut receivers);
+
+        let (rx1, mut tx1) = FeedbackChannel::channel();
+        let (rx2, mut tx2) = FeedbackChannel::channel();
+        let (rx3, mut tx3) = FeedbackChannel::channel();
+
+        let coordinator = Coordinator::new(network_info.clone());
+
+        let identity_table = IdentityTableBuilder::new(network_info.clone())
+            .add_peer(replica1.clone())
+            .add_peer(replica2.clone())
+            .add_peer(replica3.clone())
+            .build();
+        let mut client = ClientHandler::new(Communicator::new(
+            0,
+            replica1.clone(),
+            sender1,
+            rx1,
+            network_info.clone(),
+            identity_table.clone(),
+        ));
+
+        let mut rh2 = ReplicaHandler::new(Communicator::new(
+            1,
+            replica2.clone(),
+            sender2,
+            rx2,
+            network_info.clone(),
+            identity_table.clone(),
+        ),
+        coordinator.proposer(),
+        coordinator.subscribe());
+
+        let mut rh3 = ReplicaHandler::new(Communicator::new(
+            2,
+            replica3.clone(),
+            sender3,
+            rx3,
+            network_info.clone(),
+            identity_table.clone(),
+        ),
+        coordinator.proposer(),
+        coordinator.subscribe());
+
+        let cmd = Command::new(0, Action::Register);
+        let result = CommandResult::Success(None);
+        assert_eq!(timeout(Duration::from_secs(1), rh2.acknowledge_client(cmd.clone(), result.clone(), Phase::ACK)).await.unwrap(), true);
+
+        let (id, msg, _) = timeout(Duration::from_secs(1), receiver1.receive()).await.unwrap();
+        assert_eq!(msg, Message::CommandAcknowledgement(cmd.clone(), 1, result.clone(), Phase::ACK));
+        assert_eq!(id, replica2.clone());
+
+        let cmd2 = Command::new(35, Action::Get);
+        assert_eq!(timeout(Duration::from_secs(1), rh2.acknowledge_client(cmd2.clone(), result.clone(), Phase::ACK)).await.unwrap(), false);
+
+    }
+
+    #[tokio::test]
+    async fn correctly_recover_consensus() {
+        let network_info = NetworkInfo::new(1, 3, 2, 0, 10, 3);
+        let mut mock_network = UnicastSystem::<Message>::setup(6).await;
+        let (replica3, replica_sender3, mut replica_receiver3) = Utils::pop_from_network(&mut mock_network);
+        let (client1, client_sender1, mut client_receiver1) =
+            Utils::pop_from_network(&mut mock_network);
+        let (replica2, replica_sender2, mut replica_receiver2) =
+            Utils::pop_from_network(&mut mock_network);
+        let (replica1, replica_sender1, mut replica_receiver1) =
+            Utils::pop_from_network(&mut mock_network);
+        let (replica3, replica_sender3, mut replica_receiver3) =
+            Utils::pop_from_network(&mut mock_network);
+        // Faulty replica doesn't send anything
+        let (rx1, mut tx1) = FeedbackChannel::channel();
+        let (rx2, mut tx2) = FeedbackChannel::channel();
+        let (rx3, mut tx3) = FeedbackChannel::channel();
+        let (rx4, mut tx4) = FeedbackChannel::channel();
+
+
+        let coordinator = Coordinator::new(network_info.clone());
+
+        let identity_table = IdentityTableBuilder::new(network_info.clone())
+            .add_peer(replica1.clone())
+            .add_peer(replica2.clone())
+            .add_peer(replica3.clone())
+            .build();
+        let mut client = ClientHandler::new(Communicator::new(
+            0,
+            client1.clone(),
+            client_sender1,
+            rx1,
+            network_info.clone(),
+            identity_table.clone(),
+        ));
+
+        let mut rh2 = ReplicaHandler::new(Communicator::new(
+            1,
+            replica2.clone(),
+            replica_sender2,
+            rx2,
+            network_info.clone(),
+            identity_table.clone(),
+        ),
+        coordinator.proposer(),
+        coordinator.subscribe());
+
+        let mut rh3 = ReplicaHandler::new(Communicator::new(
+            2,
+            replica3.clone(),
+            replica_sender3,
+            rx3,
+            network_info.clone(),
+            identity_table.clone(),
+        ),
+        coordinator.proposer(),
+        coordinator.subscribe());
+        // Replica handlers must be runned on different threads
+
+        coordinator;
+    }
+    #[tokio::test]
+    async fn process_non_conflicting_commands_correctly() {
+        let network_info = NetworkInfo::new(1, 3, 0, 2, 10, 3);
+        let mut mock_network = UnicastSystem::<Message>::setup(6).await;
+        let (replica3, replica_sender3, mut replica_receiver3) = Utils::pop_from_network(&mut mock_network);
+        let (client1, client_sender1, mut client_receiver1) =
+            Utils::pop_from_network(&mut mock_network);
+        let (replica2, replica_sender2, mut replica_receiver2) =
+            Utils::pop_from_network(&mut mock_network);
+        let (replica1, replica_sender1, mut replica_receiver1) =
+            Utils::pop_from_network(&mut mock_network);
+        let (replica3, replica_sender3, mut replica_receiver3) =
+            Utils::pop_from_network(&mut mock_network);
+        let (rx1, mut tx1) = FeedbackChannel::channel();
+
+        println!("Client: {:#?} \n R1: {:#?} \n R2: {:#?}, \n, R3: {:#?} \n", 
+            client1,
+            replica1,
+            replica2,
+            replica3);
+
+        let coordinator = Coordinator::new(network_info.clone());
+
+        let identity_table = IdentityTableBuilder::new(network_info.clone())
+            .add_peer(client1.clone())
+            .add_peer(replica1.clone())
+            .add_peer(replica2.clone())
+            .add_peer(replica3.clone())
+            .build();
+        println!("TABLE: {:#?}", identity_table);
+
+        let mut rh1 = ReplicaHandler::new(Communicator::new(
+            1,
+            replica1.clone(),
+            replica_sender1,
+            rx1,
+            network_info.clone(),
+            identity_table.clone(),
+        ),
+        coordinator.proposer(),
+        coordinator.subscribe());
+
+        // Replica handlers must be runned on different threads
+
+        let cmd1 = Command::new(0, Action::Deposit(1));
+        let cmd2 = Command::new(0, Action::Deposit(2));
+        let cmd3 = Command::new(0, Action::Register);
+        let cmd4 = Command::new(0, Action::Deposit(4));
+        rh1.database.received_mut().insert(cmd1.clone());
+        rh1.database.received_mut().insert(cmd2.clone());
+        rh1.database.received_mut().insert(cmd3.clone());
+        rh1.database.received_mut().insert(cmd4.clone());
+
+        rh1.database.delivered_mut().insert(cmd3.clone());
+        rh1.database.pending_mut().insert(cmd4.clone());
+
+        rh1.banking.register(0);
+        rh1.banking.deposit(&0, 4).expect("Failed to execute cmd 4");
+        rh1.database.increment_round();
+        rh1.database.increment_round();
+
+        if let Err(_) = timeout(Duration::from_secs(3), rh1.process_commands()).await {
+            panic!("Failed to process commands");
+        }
+
+        let mut i = 0;
+        while let Ok((_, Message::CommandAcknowledgement(_, k, res, phase), _)) = timeout(Duration::from_secs(1), client_receiver1.receive()).await {
+            assert_eq!(phase, Phase::ACK);
+            assert_eq!(k, 3);
+            if let CommandResult::Success(_) = res {
+
+            } else {
+                panic!("Unvalid resut");
+            }
+
+            i += 1;
+        }
+
+        assert_eq!(i, 2);
+
+        // Replica must receives the broadcast
+        let mut set2: Set = BTreeSet::new();
+        set2.insert(cmd1.clone());
+        set2.insert(cmd2.clone());
+        set2.insert(cmd4.clone());
+        let broadcast = Message::ReplicaBroadcast(3, set2, Phase::ACK);
+        let (_, recv, _) = timeout(Duration::from_secs(10), replica_receiver2.receive()).await.expect("Replica 2 doesn't receive the broadcast");
+        assert_eq!(broadcast, recv);
+        let (_, recv, _) = timeout(Duration::from_secs(10), replica_receiver3.receive()).await.expect("Replica 2 doesn't receive the broadcast");
+        assert_eq!(broadcast, recv);
+
+        // Must not receive more 
+        let res = timeout(Duration::from_secs(1), replica_receiver2.receive()).await;
+        if let Ok(_) = res {
+            panic!("Replica 2 should only receive one msg");
+        }
+        let res = timeout(Duration::from_secs(1), replica_receiver1.receive()).await;
+        if let Ok(_) = res {
+            panic!("Replica 1 should not receive any msg");
+        }
+
+        let res = timeout(Duration::from_secs(1), replica_receiver3.receive()).await;
+        if let Ok(_) = res {
+            panic!("Replica 3 should only receive one msg");
+        }
+
+        assert_eq!(rh1.database.results().contains_key(&cmd1), true);
+        assert_eq!(rh1.database.results().contains_key(&cmd2), true);
+
+        assert_eq!(rh1.banking.get(&0), Some(7));
+
+    }
+
+    #[test]
+    fn is_conflict_working() {
+        let mut set: Set = BTreeSet::new();
+        set.insert(Command::new(0, Action::Deposit(10)));
+        set.insert(Command::new(1, Action::Get));
+
+        assert_eq!(ReplicaHandler::is_there_conflict(&set), false);
+
+        set.insert(Command::new(2, Action::Register));
+
+        assert_eq!(ReplicaHandler::is_there_conflict(&set), false);
+        set.insert(Command::new(0, Action::Withdraw(3)));
+
+        assert_eq!(ReplicaHandler::is_there_conflict(&set), true);
+
+    }
+
+    #[tokio::test]
+    async fn execute_correctly() {
+        let network_info = NetworkInfo::new(1, 3, 0, 2, 10, 3);
+        let mut mock_network = UnicastSystem::<Message>::setup(6).await;
+        let (replica3, replica_sender3, mut replica_receiver3) = Utils::pop_from_network(&mut mock_network);
+        let (client1, client_sender1, mut client_receiver1) =
+            Utils::pop_from_network(&mut mock_network);
+        let (replica2, replica_sender2, mut replica_receiver2) =
+            Utils::pop_from_network(&mut mock_network);
+        let (replica1, replica_sender1, mut replica_receiver1) =
+            Utils::pop_from_network(&mut mock_network);
+        let (replica3, replica_sender3, mut replica_receiver3) =
+            Utils::pop_from_network(&mut mock_network);
+        let (rx1, mut tx1) = FeedbackChannel::channel();
+
+        println!("Client: {:#?} \n R1: {:#?} \n R2: {:#?}, \n, R3: {:#?} \n", 
+            client1,
+            replica1,
+            replica2,
+            replica3);
+
+        let coordinator = Coordinator::new(network_info.clone());
+
+        let identity_table = IdentityTableBuilder::new(network_info.clone())
+            .add_peer(client1.clone())
+            .add_peer(replica1.clone())
+            .add_peer(replica2.clone())
+            .add_peer(replica3.clone())
+            .build();
+        println!("TABLE: {:#?}", identity_table);
+
+        let mut replica = ReplicaHandler::new(Communicator::new(
+            1,
+            replica1.clone(),
+            replica_sender1,
+            rx1,
+            network_info.clone(),
+            identity_table.clone(),
+        ),
+        coordinator.proposer(),
+        coordinator.subscribe());
+
+        let registration = Command::new(0, Action::Register);
+        let deposit = Command::new(0, Action::Deposit(10));
+        let get = Command::new(0, Action::Get);
+        let withdraw = Command::new(0, Action::Withdraw(5));
+
+        if let CommandResult::Failure(_) = replica.execute(&withdraw) {}
+        else {
+            panic!("Withdraw should fail");
+        }
+        if let CommandResult::Failure(_) = replica.execute(&get) {}
+        else {
+            panic!("Get should fail: client is not registered");
+        }
+        if let CommandResult::Failure(_) = replica.execute(&deposit) {}
+        else {
+            panic!("Deposit should fail");
+        }
+
+        if let CommandResult::Success(_) = replica.execute(&registration) {}
+        else {
+            panic!("Registration should succeed");
+        }
+
+        if let CommandResult::Failure(_) = replica.execute(&registration) {}
+        else {
+            panic!("Client should already be registered");
+        }
+
+        if let CommandResult::Failure(_) = replica.execute(&withdraw) {}
+        else {
+            panic!("Client hsould not have enough money");
+        }
+
+        if let CommandResult::Success(_) = replica.execute(&deposit) {}
+        else {
+            panic!("Client should be able to deposit");
+        }
+
+        if let CommandResult::Success(_) = replica.execute(&withdraw) {}
+        else {
+            panic!("Client should withdraw 5");
+        }
+
+        for transaction in replica.database.logs_mut().iter() {
+            println!("{}", transaction);
+        }
+    }
+
+    #[tokio::test]
+    async fn correctly_rollback_commands() {
+        let network_info = NetworkInfo::new(1, 3, 0, 2, 10, 3);
+        let mut mock_network = UnicastSystem::<Message>::setup(6).await;
+        let (client1, client_sender1, mut client_receiver1) =
+            Utils::pop_from_network(&mut mock_network);
+        let (replica2, replica_sender2, mut replica_receiver2) =
+            Utils::pop_from_network(&mut mock_network);
+        let (replica1, replica_sender1, mut replica_receiver1) =
+            Utils::pop_from_network(&mut mock_network);
+        let (replica3, replica_sender3, mut replica_receiver3) =
+            Utils::pop_from_network(&mut mock_network);
+        let (rx1, mut tx1) = FeedbackChannel::channel();
+
+        println!("Client: {:#?} \n R1: {:#?} \n R2: {:#?}, \n, R3: {:#?} \n", 
+            client1,
+            replica1,
+            replica2,
+            replica3);
+
+        let coordinator = Coordinator::new(network_info.clone());
+
+        let identity_table = IdentityTableBuilder::new(network_info.clone())
+            .add_peer(client1.clone())
+            .add_peer(replica1.clone())
+            .add_peer(replica2.clone())
+            .add_peer(replica3.clone())
+            .build();
+        println!("TABLE: {:#?}", identity_table);
+
+        let mut replica = ReplicaHandler::new(Communicator::new(
+            1,
+            replica1.clone(),
+            replica_sender1,
+            rx1,
+            network_info.clone(),
+            identity_table.clone(),
+        ),
+        coordinator.proposer(),
+        coordinator.subscribe());
+
+        let registration = Command::new(0, Action::Register);
+        let deposit = Command::new(0, Action::Deposit(10));
+        let get = Command::new(0, Action::Get);
+        let withdraw = Command::new(0, Action::Withdraw(5));
+
+        let res = replica.execute(&registration);
+        replica.database.add_result(registration.clone(), res);
+        let rollback = replica.rollback(&registration).expect("Unregister should be successful");
+        assert_eq!(replica.banking.get(&0), None);
+
+        replica.banking.register(0);
+        let res = replica.execute(&deposit);
+        replica.database.add_result(deposit.clone(), res);
+        replica.execute(&Command::new(1, Action::Deposit(10)));
+        replica.rollback(&deposit).expect("Deposit should be removed");
+
+        assert_eq!(replica.banking.get(&0), Some(0));
+
+        replica.banking.register(0);
+        replica.banking.register(1);
+        replica.banking.deposit(&1, 12).unwrap();
+        replica.banking.deposit(&0, 10).unwrap();
+        let res = replica.execute(&withdraw);
+        replica.database.add_result(withdraw.clone(), res);
+        replica.rollback(&withdraw).expect("Rollback should succeed");
+
+        assert_eq!(replica.banking.get(&0), Some(10));
+        assert_eq!(replica.banking.get(&1), Some(12));
+
+
+    }
+
+    #[tokio::test]
+    async fn correctly_execute_conflicting_messages() {
+        let network_info = NetworkInfo::new(2, 3, 0, 2, 10, 3);
+        let mut mock_network = UnicastSystem::<Message>::setup(7).await;        let (client1, client_sender1, mut client_receiver1) =
+            Utils::pop_from_network(&mut mock_network);
+        let (client2, client_sender2, mut client_receiver2) =
+            Utils::pop_from_network(&mut mock_network);
+        let (replica2, replica_sender2, mut replica_receiver2) =
+            Utils::pop_from_network(&mut mock_network);
+        let (replica1, replica_sender1, mut replica_receiver1) =
+            Utils::pop_from_network(&mut mock_network);
+        let (replica3, replica_sender3, mut replica_receiver3) =
+            Utils::pop_from_network(&mut mock_network);
+        let (faulty_replica1, faulty_replica_sender1, mut faulty_replica_receiver1) =
+            Utils::pop_from_network(&mut mock_network);
+        let (faulty_replica2, faulty_replica_sender2, mut faulty_replica_receiver2) =
+            Utils::pop_from_network(&mut mock_network);
+
+        let (rx1, mut tx1) = FeedbackChannel::channel();
+
+        println!("Client: {:#?} \n R1: {:#?} \n R2: {:#?}, \n, R3: {:#?} \n", 
+            client1,
+            replica1,
+            replica2,
+            replica3);
+
+        let mut coordinator = Coordinator::new(network_info.clone());
+
+        let identity_table = IdentityTableBuilder::new(network_info.clone())
+            .add_peer(client1.clone())
+            .add_peer(client2.clone())
+            .add_peer(replica1.clone())
+            .add_peer(replica2.clone())
+            .add_peer(replica3.clone())
+            .add_peer(faulty_replica1.clone())
+            .add_peer(faulty_replica2.clone())
+            .build();
+        println!("TABLE: {:#?}", identity_table);
+
+        let mut replica = ReplicaHandler::new(Communicator::new(
+            1,
+            replica1.clone(),
+            replica_sender1,
+            rx1,
+            network_info.clone(),
+            identity_table.clone(),
+        ),
+        coordinator.proposer(),
+        coordinator.subscribe());
+
+        // We previously register different clients
+
+        for i in 0..2 {
+            replica.banking.register(i);
+        }
+        
+        // Define the commands
+        let mut cmds: Vec<Command> = Vec::new();
+        let cmd1 = Command::new(0, Action::Deposit(1));
+        let cmd2 = Command::new(1, Action::Deposit(2));
+        let cmd3 = Command::new(0, Action::Deposit(3));
+        let cmd4 = Command::new(0, Action::Deposit(4));
+        let cmd5 = Command::new(1, Action::Deposit(5));
+        let cmd6 = Command::new(1, Action::Deposit(6));
+        let cmd7 = Command::new(0, Action::Deposit(7));
+        let cmd8 = Command::new(1, Action::Deposit(8));
+        let cmd9 = Command::new(0, Action::Get);
+        let cmd10 = Command::new(1, Action::Deposit(10));
+        let cmd11 = Command::new(0, Action::Deposit(11));
+        let cmd12 = Command::new(1, Action::Deposit(12));
+        let cmd13 = Command::new(0, Action::Withdraw(10));
+        cmds.push(cmd1.clone());
+        cmds.push(cmd2.clone());
+        cmds.push(cmd3.clone());
+        cmds.push(cmd4.clone());
+        cmds.push(cmd5.clone());
+        cmds.push(cmd6.clone());
+        cmds.push(cmd7.clone());
+        cmds.push(cmd8.clone());
+        cmds.push(cmd9.clone());
+        cmds.push(cmd10.clone());
+        cmds.push(cmd11.clone());
+        cmds.push(cmd12.clone());
+        cmds.push(cmd13.clone());
+
+        for cmd in cmds.iter() {
+            replica.database.receive_command(cmd.clone());
+            if cmd1.ne(cmd) && cmd8.ne(cmd) && cmd12.ne(cmd) && cmd13.ne(cmd) {
+                replica.database.delivered_mut().insert(cmd.clone());
+                replica.execute(cmd);
+            }
+        }
+
+        replica.database.pending_mut().insert(cmd1.clone());
+        replica.execute(&cmd1);
+        replica.database.pending_mut().insert(cmd8.clone());
+        replica.execute(&cmd8);
+        replica.database.increment_round();
+        replica.database.increment_round();
+
+        let round: usize = 3;
+
+        println!("Received : {:#?}", replica.database.received());
+        println!("Delivered: {:#?}", replica.database.delivered());
+        println!("Pending: : {:#?}", replica.database.pending());
+        let (unprocessed, r_dif_g) = replica.compute_unprocessed_commands();
+        println!("Unprocessed: {:#?}, dif: {:#?}", unprocessed, r_dif_g);
+        
+        assert_eq!(ReplicaHandler::is_pending(&unprocessed), true);
+        assert_eq!(ReplicaHandler::is_there_conflict(&r_dif_g), true);
+
+        let mut nc_set = BTreeSet::<Command>::new();
+        let mut c_set = BTreeSet::<Command>::new();
+        nc_set.insert(cmd1.clone());
+        nc_set.insert(cmd12.clone());
+        c_set.insert(cmd8.clone());
+        c_set.insert(cmd13.clone());
+        // Spawn a coordinator, that broadcast a predefined result when he receives the message
+        tokio::spawn(async move {
+            if let Some((id, k, nc, c )) = coordinator.receiver().recv().await {
+                coordinator.broadcaster().send((3, nc_set.clone(), c_set.clone())).unwrap();
+                println!("Coordinator completed his duty!")
+            }
+        });
+
+        timeout(Duration::from_secs(10), replica.process_commands()).await.expect("Processing commands failed");
+
+        let mut replicas = vec![replica_receiver2, replica_receiver3, faulty_replica_receiver1, faulty_replica_receiver2];
+        let mut set_test = BTreeSet::<Command>::new();
+        set_test.insert(cmd1.clone());
+        set_test.insert(cmd8.clone());
+        set_test.insert(cmd12.clone());
+        set_test.insert(cmd13.clone());
+        for replica in replicas.iter_mut() {
+            let (_, msg, _) = timeout(Duration::from_secs(10), replica.receive()).await.expect("0ne replica did not receive the broadcast");
+            match msg {
+                Message::ReplicaBroadcast(k, set, phase) => {
+                    assert_eq!(k, round);
+                    assert_eq!(set, set_test);
+                    assert_eq!(phase, Phase::CHK);
+                },
+                _ => panic!("Wrong broadcast"),
+}
+        }
+
+        let (_, msg, _) = timeout(Duration::from_secs(1), client_receiver1.receive()).await.expect("Client #0 fails");
+        match msg {
+            Message::CommandAcknowledgement(cmd, k, res, phase) => {
+                if cmd.ne(&cmd1) && cmd.ne(&cmd13) {
+                    panic!();
+                }
+                assert_eq!(k, round);
+                assert_eq!(res, CommandResult::Success(None));
+                assert_eq!(phase, Phase::CHK);
+            },
+            _ => panic!(),
+        }
+        let (_, msg, _) = timeout(Duration::from_secs(1), client_receiver2.receive()).await.expect("Client #0 fails");
+        match msg {
+            Message::CommandAcknowledgement(cmd, k, res, phase) => {
+                if cmd.ne(&cmd8) && cmd.ne(&cmd12) {
+                    panic!();
+                }
+                assert_eq!(k, round);
+                assert_eq!(res, CommandResult::Success(None));
+                assert_eq!(phase, Phase::CHK);
+            },
+            _ => panic!(),
+        }
+
+        let (_, msg, _) = timeout(Duration::from_secs(1), client_receiver2.receive()).await.expect("Client #0 fails");
+        match msg {
+            Message::CommandAcknowledgement(cmd, k, res, phase) => {
+                if cmd.ne(&cmd8) && cmd.ne(&cmd12) {
+                    panic!();
+                }
+                assert_eq!(k, round);
+                assert_eq!(res, CommandResult::Success(None));
+                assert_eq!(phase, Phase::CHK);
+            },
+            _ => panic!(),
+        }
+
+        let (_, msg, _) = timeout(Duration::from_secs(1), client_receiver1.receive()).await.expect("Client #0 fails");
+        match msg {
+            Message::CommandAcknowledgement(cmd, k, res, phase) => {
+                if cmd.ne(&cmd1) && cmd.ne(&cmd13) {
+                    panic!();
+                }
+                assert_eq!(k, round);
+                assert_eq!(res, CommandResult::Success(None));
+                assert_eq!(phase, Phase::CHK);
+            },
+            _ => panic!(),
+        }
+
+        assert_eq!(replica.database.delivered(), replica.database.received());
+        assert_eq!(*replica.database.round(), 4);
+        assert_eq!(replica.database.pending().is_empty(), true);
+        assert_eq!(replica.database.results().is_empty(), true);
+
+        for log in replica.database.logs() {
+            println!("{}", log);
+        }
+
+        assert_eq!(replica.banking.get(&0), Some(17));
+        assert_eq!(replica.banking.get(&1), Some(43));
+    }
+
 }

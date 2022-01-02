@@ -65,6 +65,10 @@ impl NetworkInfo {
         self.nbr_faulty_replicas()
     }
 
+    pub fn consensus_slowdown(&self) -> u64 {
+        1
+    }
+
     pub fn compute_ranges(&self) -> (Range<usize>, Range<usize>, Range<usize>, Range<usize>) {
         let client_start: usize = 0;
         let client_end: usize = self.nbr_clients();

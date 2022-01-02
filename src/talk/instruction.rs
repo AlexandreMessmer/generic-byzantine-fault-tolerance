@@ -1,13 +1,3 @@
-
-
-
-
-
-
-
-
-
-
 use super::{Command, Message};
 
 pub enum Instruction {

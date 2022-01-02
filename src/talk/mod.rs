@@ -1,8 +1,4 @@
-
-
-
 use serde::{Deserialize, Serialize};
-
 
 use tokio::sync::mpsc;
 
@@ -19,8 +15,6 @@ pub use command_result::CommandResult;
 pub use feedback::Feedback;
 pub use instruction::Instruction;
 pub use message::Message;
-
-
 
 pub type CommandId = Uuid;
 pub type RoundNumber = usize;

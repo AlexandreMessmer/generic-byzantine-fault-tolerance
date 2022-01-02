@@ -1,24 +1,18 @@
-use std::{time::Duration};
+use std::time::Duration;
 
 use doomstack::Top;
-
 
 use talk::{
     crypto::Identity,
     sync::fuse::Fuse,
     unicast::{Acknowledgement, SenderError},
 };
-use tokio::{
-    task::JoinHandle,
-    time::sleep,
-};
+use tokio::{task::JoinHandle, time::sleep};
 
 use crate::{
     crypto::identity_table::IdentityTable,
     network::NetworkInfo,
-    peer::{
-        peer::PeerId,
-    },
+    peer::peer::PeerId,
     talk::{Feedback, FeedbackSender},
     types::*,
 };
@@ -72,15 +66,15 @@ where
         self.sender.send(remote, message).await
     }
 
-    pub async fn spawn_send(
+    pub async fn spawn_send_message(
         &self,
         remote: Identity,
         message: T,
     ) -> JoinHandle<Result<Acknowledgement, Top<SenderError>>> {
         let sender = self.sender.clone();
         let delay = self.network_info().transmition_delay();
+        Self::transmit(delay).await;
         tokio::spawn(async move {
-            Self::transmit(delay).await;
             sender.send(remote, message).await
         })
     }
@@ -117,16 +111,20 @@ where
     async fn transmit(delay: u64) {
         sleep(Duration::from_millis(delay)).await;
     }
-
 }
 
 #[cfg(test)]
 mod tests {
 
-    use talk::{unicast::test::UnicastSystem, time::timeout};
+    use talk::{time::timeout, unicast::test::UnicastSystem};
     use tokio::join;
 
-    use crate::{talk::{Message, FeedbackChannel}, network::network_info, tests::util::Utils, crypto::identity_table::IdentityTableBuilder};
+    use crate::{
+        crypto::identity_table::IdentityTableBuilder,
+        network::network_info,
+        talk::{FeedbackChannel, Message},
+        tests::util::Utils,
+    };
 
     use super::*;
 
@@ -137,7 +135,11 @@ mod tests {
             mut receivers,
         } = UnicastSystem::<Message>::setup(1).await;
 
-        (keys.pop().unwrap(), senders.pop().unwrap(), receivers.pop().unwrap())
+        (
+            keys.pop().unwrap(),
+            senders.pop().unwrap(),
+            receivers.pop().unwrap(),
+        )
     }
 
     #[tokio::test]
@@ -150,14 +152,21 @@ mod tests {
         let (key, sender, _) = Utils::pop(&mut keys, &mut senders, &mut receivers);
         let (target, _, mut receiver) = Utils::pop(&mut keys, &mut senders, &mut receivers);
         let (rx, mut tx) = FeedbackChannel::channel();
-        let communicator = Communicator::new(0, key.clone(), sender, rx, network_info.clone(), IdentityTableBuilder::new(network_info).build());
-        let send = communicator.spawn_send(target.clone(), Message::Testing).await;
-        
+        let communicator = Communicator::new(
+            0,
+            key.clone(),
+            sender,
+            rx,
+            network_info.clone(),
+            IdentityTableBuilder::new(network_info).build(),
+        );
+        let send = communicator
+            .spawn_send_message(target.clone(), Message::Testing)
+            .await;
+
         let (id, recv, _) = receiver.receive().await;
-        
+
         assert_eq!(id, key.clone());
         assert_eq!(recv, Message::Testing);
-
-    
     }
 }
