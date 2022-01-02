@@ -74,9 +74,7 @@ where
         let sender = self.sender.clone();
         let delay = self.network_info().transmition_delay();
         Self::transmit(delay).await;
-        tokio::spawn(async move {
-            sender.send(remote, message).await
-        })
+        tokio::spawn(async move { sender.send(remote, message).await })
     }
 
     // Sends the feedback on the current thread

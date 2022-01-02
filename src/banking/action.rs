@@ -1,4 +1,4 @@
-use std::{fmt::Display, cmp::Ordering};
+use std::{cmp::Ordering, fmt::Display};
 
 use serde::{Deserialize, Serialize};
 
@@ -30,6 +30,5 @@ mod tests {
     fn comp() {
         println!("{:?}", Action::Register.cmp(&Action::Register));
         println!("{:?}", Action::Deposit(10).cmp(&Action::Withdraw(10)));
-
     }
 }

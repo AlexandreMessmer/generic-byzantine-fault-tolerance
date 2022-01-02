@@ -81,7 +81,13 @@ impl Utils {
         )
     }
 
-    pub fn pop_from_network(system: &mut UnicastSystem<Message>) -> (Identity, UnicastSender<Message>, UnicastReceiver<Message>) {
-        (system.keys.pop().unwrap(), system.senders.pop().unwrap(), system.receivers.pop().unwrap())
+    pub fn pop_from_network(
+        system: &mut UnicastSystem<Message>,
+    ) -> (Identity, UnicastSender<Message>, UnicastReceiver<Message>) {
+        (
+            system.keys.pop().unwrap(),
+            system.senders.pop().unwrap(),
+            system.receivers.pop().unwrap(),
+        )
     }
 }

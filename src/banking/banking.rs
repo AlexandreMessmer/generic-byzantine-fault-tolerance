@@ -81,7 +81,6 @@ impl Banking {
     pub fn get(&self, client: &PeerId) -> Option<Money> {
         self.clients.get(client).map(|value| *value)
     }
-
 }
 
 #[cfg(test)]

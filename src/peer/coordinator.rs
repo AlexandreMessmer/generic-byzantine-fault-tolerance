@@ -142,8 +142,16 @@ impl Coordinator {
         None
     }
 
-    async fn broadcast(&self, k: RoundNumber, nc_set: BTreeSet<Command>, c_set: BTreeSet<Command>) -> Result<usize, SendError<ProposalData>> {
-        tokio::time::sleep(Duration::from_millis(self.network_info.transmition_delay() * self.network_info.consensus_slowdown())).await;
+    async fn broadcast(
+        &self,
+        k: RoundNumber,
+        nc_set: BTreeSet<Command>,
+        c_set: BTreeSet<Command>,
+    ) -> Result<usize, SendError<ProposalData>> {
+        tokio::time::sleep(Duration::from_millis(
+            self.network_info.transmition_delay() * self.network_info.consensus_slowdown(),
+        ))
+        .await;
         self.broadcaster.send((k, nc_set, c_set))
     }
     pub fn received(&self) -> &ReceivedMap {
@@ -159,7 +167,6 @@ impl Coordinator {
     pub fn broadcaster(&self) -> &BroadcastSender<ProposalData> {
         &self.broadcaster
     }
-
 }
 
 #[async_trait::async_trait]
