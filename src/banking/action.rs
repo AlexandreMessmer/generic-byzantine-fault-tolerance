@@ -14,12 +14,14 @@ pub enum Action {
 
 impl Display for Action {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match *self {
-            Action::Register => write!(f, "Register"),
-            Action::Get => write!(f, "Get current balance"),
-            Action::Deposit(amount) => write!(f, "Deposit {}", amount),
-            Action::Withdraw(amount) => write!(f, "Withdraw {}", amount),
-        }
+        let str = match *self {
+            Action::Register => format!("Register"),
+            Action::Get => format!("Get balance"),
+            Action::Deposit(amount) => format!("Deposit {:5.5}", amount),
+            Action::Withdraw(amount) => format!("Withdraw {:4.4}", amount),
+        };
+
+        write!(f, "{:<16.16}", str)
     }
 }
 

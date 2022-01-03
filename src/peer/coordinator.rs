@@ -148,8 +148,9 @@ impl Coordinator {
         nc_set: BTreeSet<Command>,
         c_set: BTreeSet<Command>,
     ) -> Result<usize, SendError<ProposalData>> {
+        println!("Consensus solved!");
         tokio::time::sleep(Duration::from_millis(
-            self.network_info.transmition_delay() * self.network_info.consensus_slowdown(),
+            self.network_info.consensus_transmition_delay(),
         ))
         .await;
         self.broadcaster.send((k, nc_set, c_set))
@@ -215,7 +216,7 @@ mod tests {
 
     #[tokio::test]
     async fn propose_correctly_handle_unique_messages() {
-        let network_info = NetworkInfo::new(5, 5, 0, 0, 10, 4);
+        let network_info = NetworkInfo::with_default_report_folder(5, 5, 0, 0, 10, 4);
         let mut coordinator = Coordinator::new(network_info);
         let UnicastSystem {
             mut keys,
@@ -273,7 +274,7 @@ mod tests {
 
     #[tokio::test]
     async fn validate_correctly_handle_conflicting_sets() {
-        let network_info = NetworkInfo::new(5, 5, 0, 0, 10, 4);
+        let network_info = NetworkInfo::with_default_report_folder(5, 5, 0, 0, 10, 4);
         let mut coordinator = Coordinator::new(network_info.clone());
         let network = Network::setup(network_info).await;
 
@@ -328,7 +329,7 @@ mod tests {
 
     #[tokio::test]
     async fn does_not_propose_out_of_order() {
-        let network_info = NetworkInfo::new(5, 5, 0, 0, 10, 3);
+        let network_info = NetworkInfo::with_default_report_folder(5, 5, 0, 0, 10, 3);
         let mut coordinator = Coordinator::new(network_info.clone());
         let network = Network::setup(network_info.clone()).await;
 

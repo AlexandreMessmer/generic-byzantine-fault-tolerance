@@ -38,10 +38,11 @@ impl ReplicaDatabase {
     /// Returns true if the value was not present
     pub fn receive_command(&mut self, command: Command) -> bool {
         self.received.insert(command)
+
     }
 
-    pub fn receive_set(&mut self, set: &Set) {
-        self.received = self.received.union(set).cloned().collect()
+    pub fn receive_set(&mut self, set: &mut Set) {
+        self.received.append(set)
     }
 
     pub fn delivered_all(&mut self, set: &Set) {
@@ -159,7 +160,7 @@ mod tests {
         }
         let unique_cmd = Command::new(0, Action::Register);
         db.receive_command(unique_cmd.clone());
-        db.receive_set(&cmds);
+        db.receive_set(&mut cmds);
 
         for cmd in cmds.into_iter() {
             assert_eq!(db.received.contains(&cmd), true);

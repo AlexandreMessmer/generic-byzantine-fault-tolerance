@@ -81,6 +81,10 @@ impl Banking {
     pub fn get(&self, client: &PeerId) -> Option<Money> {
         self.clients.get(client).map(|value| *value)
     }
+
+    pub fn clients(&self) -> &HashMap<usize, Money> {
+        &self.clients
+    }
 }
 
 #[cfg(test)]

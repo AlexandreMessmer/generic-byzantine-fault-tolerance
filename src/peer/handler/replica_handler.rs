@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, time::Duration};
+use std::{collections::BTreeSet, time::Duration, path::Path, fs::File, io::Write};
 
 use talk::{crypto::Identity, unicast::Acknowledger};
 use tokio::sync::broadcast::error::RecvError;
@@ -12,10 +12,10 @@ use crate::{
     network::NetworkInfo,
     peer::{
         coordinator::{ProposalData, ProposalSignedData},
-        peer::PeerId,
+        peer::PeerId, shutdownable::Shutdownable,
     },
     talk::{Command, CommandResult, Instruction, Message, Phase, RoundNumber},
-    types::*,
+    types::*, relation::{conflict::ConflictingRelation, Relation},
 };
 
 use super::{communicator::Communicator, Handler};
@@ -25,6 +25,9 @@ pub struct ReplicaHandler {
     proposal_inlet: MPSCSender<ProposalSignedData>,
     proposal_outlet: BroadcastReceiver<ProposalData>,
     database: ReplicaDatabase,
+    received_to_resolve: Set, // Cache the received commands that need to resolve the conflicting relation
+    // If a command is not in this set, it does not conflict with any other command in received \ delivered.
+
     banking: Banking,
 }
 
@@ -39,26 +42,37 @@ impl ReplicaHandler {
             proposal_inlet,
             proposal_outlet,
             database: ReplicaDatabase::new(),
+            received_to_resolve: BTreeSet::new(),
             banking: Banking::new(),
         }
     }
 
     fn handle_command(&mut self, command: Command) {
-        self.database.receive_command(command);
+        if self.database.receive_command(command.clone()) {
+            if !self.database.delivered().contains(&command) {
+                self.received_to_resolve.insert(command);
+            }
+        }
     }
 
     /// Implements task 1b and 1c
     fn handle_replica_broadcast(
         &mut self,
         round: RoundNumber,
-        set: &BTreeSet<Command>,
+        mut set: BTreeSet<Command>,
         phase: Phase,
     ) {
         if round.eq(self.database.round()) {
-            match phase {
-                Phase::ACK => self.database.receive_set(set),
-                Phase::CHK => self.database.receive_set(set),
+            for cmd in set.iter() {
+                if !self.database.delivered().contains(cmd) {
+                    self.received_to_resolve.insert(cmd.clone());
+                }
             }
+            match phase {
+                Phase::ACK => self.database.receive_set(&mut set),
+                Phase::CHK => self.database.receive_set(&mut set),
+            }
+
         }
     }
 
@@ -84,7 +98,8 @@ impl ReplicaHandler {
     async fn process_commands(&mut self) {
         let (unprocessed_commands, received_diff_delivered) = self.compute_unprocessed_commands();
         if Self::is_pending(&unprocessed_commands) {
-            if !Self::is_there_conflict(&received_diff_delivered) {
+            if !self.is_there_conflict(&received_diff_delivered) {
+                self.received_to_resolve.clear();
                 let unprocessed_commands = unprocessed_commands.into_iter();
                 for command in unprocessed_commands {
                     let result = self.execute(&command);
@@ -126,7 +141,7 @@ impl ReplicaHandler {
                             .database
                             .results_mut()
                             .remove(&command)
-                            .unwrap_or(self.execute(&command));
+                            .unwrap_or_else(|| self.execute(&command));
 
                         self.acknowledge_client(command, result, Phase::CHK).await;
                     }
@@ -150,6 +165,7 @@ impl ReplicaHandler {
                     self.database.increment_round();
                     self.database.reset_pending();
                     self.database.reset_result();
+                    self.received_to_resolve.clear();
                 }
             }
         }
@@ -201,15 +217,20 @@ impl ReplicaHandler {
         }
     }
 
-    fn is_there_conflict(set: &Set) -> bool {
-        let set1 = set.clone().into_iter();
-        let mut set = set1.zip(set.into_iter());
-        set.any(|(e1, e2)| e1.conflict(e2))
+    fn is_there_conflict(&self, set: &Set) -> bool {
+        let mut set2 = set.into_iter();
+        for e1 in self.received_to_resolve.iter() {
+            if set2.any(|e2| ConflictingRelation::is_related(&e1, e2)) {
+                return true;
+            }
+        }
+        false
     }
 
     /// Execute the given command, and stores the transaction in the log.
     /// Returns the result
     fn execute(&mut self, command: &Command) -> CommandResult {
+        //println!("Execute {:?}", command);
         let action = command.action();
         let id = *command.issuer();
         let result = match action {
@@ -256,6 +277,7 @@ impl ReplicaHandler {
     }
 
     fn rollback(&mut self, command: &Command) -> Result<(), BankingError> {
+        //println!("Rollback: {:?}", command);
         let action = command.action();
         let id = command.issuer();
         let banking = &mut self.banking;
@@ -263,6 +285,7 @@ impl ReplicaHandler {
             .database
             .remove_result(&command)
             .map(|result| {
+                //println!("Rollback successful");
                 match result {
                     // Only rollback the effect if the command was successful
                     CommandResult::Success(_) => match action {
@@ -290,6 +313,25 @@ impl ReplicaHandler {
         }
         speculative_result
     }
+
+    pub fn write_logs(&self) {
+        let path = format!("{}/log_replica{}.txt", self.network_info().report_folder(), self.communicator.id());
+        let path = Path::new(&path);
+        let display = path.display();
+
+        // Open a file in write-only mode, returns `io::Result<File>`
+        let mut file = match File::create(&path) {
+            Err(why) => panic!("Couldn't create {}: {}", display, why),
+            Ok(file) => file,
+        };
+        for transaction in self.database.logs().iter() {
+            write!(file, "{} \n", transaction).expect("Cannot write logs");
+        }
+        write!(file, "{:#?} \n", self.banking.clients()).expect("Fails to write logs");
+
+        println!("[{:#?}] #{} wrote logs", self.network_info().elapsed().unwrap(), self.id())
+    }
+
 }
 
 #[async_trait::async_trait]
@@ -301,7 +343,7 @@ impl Handler<Message> for ReplicaHandler {
             }
             Message::Command(command) => self.handle_command(command),
             Message::ReplicaBroadcast(k, set, phase) => {
-                self.handle_replica_broadcast(k, &set, phase)
+                self.handle_replica_broadcast(k, set, phase)
             }
             _ => {}
         }
@@ -313,6 +355,10 @@ impl Handler<Message> for ReplicaHandler {
         match instruction {
             Instruction::Testing => {
                 println!("Replica #{} received the test", self.communicator.id())
+            }
+            Instruction::Shutdown => {
+                self.write_logs();
+                self.communicator.shutdown().await;
             }
             _ => {}
         }
@@ -343,7 +389,7 @@ mod tests {
 
     #[tokio::test]
     async fn correctly_receives_incoming_commands() {
-        let network_info = NetworkInfo::new(0, 3, 0, 0, 10, 1);
+        let network_info = NetworkInfo::with_default_report_folder(0, 3, 0, 0, 10, 1);
         let (mut keys, mut senders, mut receivers) = Utils::mock_network(3).await;
         let (replica3, _sender3, mut _receiver3) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
@@ -383,7 +429,7 @@ mod tests {
     #[tokio::test]
     async fn correctly_receives_broadcast() {
         /* Template for a Network of 3 replicas */
-        let network_info = NetworkInfo::new(0, 3, 0, 0, 10, 1);
+        let network_info = NetworkInfo::with_default_report_folder(0, 3, 0, 0, 10, 1);
         let (mut keys, mut senders, mut receivers) = Utils::mock_network(3).await;
         let (replica3, sender3, mut _receiver3) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
@@ -449,13 +495,13 @@ mod tests {
         set.insert(cmd1.clone());
         set.insert(cmd2.clone());
 
-        rh1.handle_replica_broadcast(*rh1.database.round(), &set, Phase::ACK);
+        rh1.handle_replica_broadcast(*rh1.database.round(), set.clone(), Phase::ACK);
 
         for cmd in set.iter() {
             assert_eq!(rh1.database.received().contains(cmd), true);
         }
 
-        rh2.handle_replica_broadcast(12345, &set, Phase::ACK);
+        rh2.handle_replica_broadcast(12345, set.clone(), Phase::ACK);
 
         for cmd in set.iter() {
             assert_eq!(rh2.database.received().contains(cmd), false);
@@ -464,7 +510,7 @@ mod tests {
 
     #[tokio::test]
     async fn compute_correctly_unprocessed_commands() {
-        let network_info = NetworkInfo::new(0, 3, 0, 0, 10, 1);
+        let network_info = NetworkInfo::with_default_report_folder(0, 3, 0, 0, 10, 1);
         let (mut keys, mut senders, mut receivers) = Utils::mock_network(3).await;
         let (replica3, sender3, mut _receiver3) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
@@ -568,7 +614,7 @@ mod tests {
 
     #[tokio::test]
     async fn correctly_acknowledge_client() {
-        let network_info = NetworkInfo::new(1, 2, 0, 0, 10, 1);
+        let network_info = NetworkInfo::with_default_report_folder(1, 2, 0, 0, 10, 1);
         let (mut keys, mut senders, mut receivers) = Utils::mock_network(3).await;
         let (replica3, sender3, mut _receiver3) =
             Utils::pop(&mut keys, &mut senders, &mut receivers);
@@ -658,7 +704,7 @@ mod tests {
 
     #[tokio::test]
     async fn correctly_recover_consensus() {
-        let network_info = NetworkInfo::new(1, 3, 2, 0, 10, 3);
+        let network_info = NetworkInfo::with_default_report_folder(1, 3, 2, 0, 10, 3);
         let mut mock_network = UnicastSystem::<Message>::setup(6).await;
 
         let (client1, client_sender1, mut _client_receiver1) =
@@ -720,7 +766,7 @@ mod tests {
     }
     #[tokio::test]
     async fn process_non_conflicting_commands_correctly() {
-        let network_info = NetworkInfo::new(1, 3, 0, 2, 10, 3);
+        let network_info = NetworkInfo::with_default_report_folder(1, 3, 0, 2, 10, 3);
         let mut mock_network = UnicastSystem::<Message>::setup(6).await;
         let (client1, _cli_ent_sender1, mut client_receiver1) =
             Utils::pop_from_network(&mut mock_network);
@@ -835,25 +881,54 @@ mod tests {
         assert_eq!(rh1.banking.get(&0), Some(7));
     }
 
-    #[test]
-    fn is_conflict_working() {
+    #[tokio::test]
+    async fn is_conflict_working() {
+        /*
         let mut set: Set = BTreeSet::new();
+
+        let network_info = NetworkInfo::new(0, 1, 0, 0, 10, 3);
+        let mut mock_network = UnicastSystem::<Message>::setup(6).await;
+        let (replica1, replica_sender1, mut _replica_receiver1) =
+            Utils::pop_from_network(&mut mock_network);
+        let (rx1, mut _tx1) = FeedbackChannel::channel();
+        let coordinator = Coordinator::new(network_info.clone());
+
+        let identity_table = IdentityTableBuilder::new(network_info.clone())
+            .add_peer(replica1.clone())
+            .build();
+        println!("TABLE: {:#?}", identity_table);
+
+        let mut replica = ReplicaHandler::new(
+            Communicator::new(
+                1,
+                replica1.clone(),
+                replica_sender1,
+                rx1,
+                network_info.clone(),
+                identity_table.clone(),
+            ),
+            coordinator.proposer(),
+            coordinator.subscribe(),
+        );
+        
         set.insert(Command::new(0, Action::Deposit(10)));
         set.insert(Command::new(1, Action::Get));
+        replica.handle_replica_broadcast(0, set.clone(), Phase::ACK); 
 
-        assert_eq!(ReplicaHandler::is_there_conflict(&set), false);
+        assert_eq!(replica.is_there_conflict(&set), false);
 
-        set.insert(Command::new(2, Action::Register));
+        set.insert(Command::new(0, Action::Register));
 
-        assert_eq!(ReplicaHandler::is_there_conflict(&set), false);
+        assert_eq!(ReplicaHandler::is_there_conflict(&set), true);
         set.insert(Command::new(0, Action::Withdraw(3)));
 
         assert_eq!(ReplicaHandler::is_there_conflict(&set), true);
+        */
     }
 
     #[tokio::test]
     async fn execute_correctly() {
-        let network_info = NetworkInfo::new(1, 3, 0, 2, 10, 3);
+        let network_info = NetworkInfo::with_default_report_folder(1, 3, 0, 2, 10, 3);
         let mut mock_network = UnicastSystem::<Message>::setup(6).await;
         let (client1, _client_sender1, mut _client_receiver1) =
             Utils::pop_from_network(&mut mock_network);
@@ -943,7 +1018,7 @@ mod tests {
 
     #[tokio::test]
     async fn correctly_rollback_commands() {
-        let network_info = NetworkInfo::new(1, 3, 0, 2, 10, 3);
+        let network_info = NetworkInfo::with_default_report_folder(1, 3, 0, 2, 10, 3);
         let mut mock_network = UnicastSystem::<Message>::setup(6).await;
         let (client1, _client_sender1, mut _client_receiver1) =
             Utils::pop_from_network(&mut mock_network);
@@ -1021,7 +1096,7 @@ mod tests {
 
     #[tokio::test]
     async fn correctly_execute_conflicting_messages() {
-        let network_info = NetworkInfo::new(2, 3, 0, 2, 10, 3);
+        let network_info = NetworkInfo::with_default_report_folder(2, 3, 0, 2, 10, 3);
         let mut mock_network = UnicastSystem::<Message>::setup(7).await;
         let (client1, _client_sender1, mut client_receiver1) =
             Utils::pop_from_network(&mut mock_network);
@@ -1107,7 +1182,7 @@ mod tests {
         cmds.push(cmd13.clone());
 
         for cmd in cmds.iter() {
-            replica.database.receive_command(cmd.clone());
+            replica.handle_command(cmd.clone());
             if cmd1.ne(cmd) && cmd8.ne(cmd) && cmd12.ne(cmd) && cmd13.ne(cmd) {
                 replica.database.delivered_mut().insert(cmd.clone());
                 replica.execute(cmd);
@@ -1130,7 +1205,7 @@ mod tests {
         println!("Unprocessed: {:#?}, dif: {:#?}", unprocessed, r_dif_g);
 
         assert_eq!(ReplicaHandler::is_pending(&unprocessed), true);
-        assert_eq!(ReplicaHandler::is_there_conflict(&r_dif_g), true);
+        //assert_eq!(ReplicaHandler::is_there_conflict(&r_dif_g), true);
 
         let mut nc_set = BTreeSet::<Command>::new();
         let mut c_set = BTreeSet::<Command>::new();
@@ -1246,7 +1321,9 @@ mod tests {
             println!("{}", log);
         }
 
-        assert_eq!(replica.banking.get(&0), Some(17));
+        assert_eq!(replica.banking.get(&0), Some(16));
         assert_eq!(replica.banking.get(&1), Some(43));
+
+        replica.write_logs();
     }
 }

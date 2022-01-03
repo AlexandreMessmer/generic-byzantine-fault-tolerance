@@ -57,7 +57,7 @@ impl Display for Transaction {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Client #{} > {} -> {} (ID: {}) : {}",
+            "Client #{:02.2} > {:<.16} -> {:<.16} (ID: {:<.8}) : {}",
             self.issuer, self.action, self.result, self.id, self.status
         )
     }
@@ -75,5 +75,18 @@ impl Display for Status {
             Status::Rollbacked => "ROLLBACKED",
         };
         write!(f, "{}", str)
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use crate::{talk::{CommandResult, Command}, banking::action::Action};
+
+    use super::Transaction;
+
+    #[test]
+    fn print_test() {
+        let t = Transaction::from_command(&Command::new(11, Action::Deposit(10)), &CommandResult::Failure(format!("123456789012345678901234567890")));
     }
 }

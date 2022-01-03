@@ -2,11 +2,11 @@ use talk::{crypto::Identity, unicast::Acknowledger};
 
 use crate::{
     network::NetworkInfo,
-    peer::peer::PeerId,
+    peer::{peer::PeerId, shutdownable::Shutdownable},
     talk::{Instruction, Message},
 };
 
-use super::{Communicator, Handler};
+use super::{Communicator, Handler, client_handler, ClientHandler};
 
 pub struct FaultyClientHandler {
     communicator: Communicator<Message>,
@@ -14,7 +14,7 @@ pub struct FaultyClientHandler {
 
 impl FaultyClientHandler {
     pub fn new(communicator: Communicator<Message>) -> Self {
-        FaultyClientHandler { communicator }
+        FaultyClientHandler { communicator}
     }
 
     fn handle_message_testing(&self) {
@@ -35,6 +35,7 @@ impl Handler<Message> for FaultyClientHandler {
     }
     async fn handle_instruction(&mut self, instruction: Instruction) {
         match instruction {
+            Instruction::Shutdown => self.communicator.shutdown().await,
             _ => {}
         }
     }

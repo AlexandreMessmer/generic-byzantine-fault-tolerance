@@ -6,19 +6,49 @@ use std::{
 use rand::thread_rng;
 use rand_distr::{Distribution, Poisson};
 
+pub const DEFAULT_SLOWDOWN_FACTOR: f64 = 10.0;
+pub const DEFAULT_REPORT_FOLDER: &str = "resources";
 #[derive(Clone)]
 pub struct NetworkInfo {
     nbr_clients: usize,
     nbr_replicas: usize,
     nbr_faulty_clients: usize,
     nbr_faulty_replicas: usize,
-    transmition_delay: Poisson<f64>, // In milliseconds
+    transmition_delay: u64,
+    slowdown_factor: f64,
+    transmition_delay_distribution: Poisson<f64>, // In milliseconds
     n_ack: usize,
+    report_folder: String,
     creation: SystemTime,
 }
 
 impl NetworkInfo {
     pub fn new(
+        nbr_clients: usize,
+        nbr_replicas: usize,
+        nbr_faulty_clients: usize,
+        nbr_faulty_replicas: usize,
+        transmition_delay: u64,
+        slowdown_factor: f64,
+        report_folder: String,
+        n_ack: usize,
+    ) -> Self {
+        assert!(5 * nbr_faulty_replicas < nbr_replicas, "Network does not satisfy the resilience condition");
+        Self {
+            nbr_clients,
+            nbr_replicas,
+            nbr_faulty_clients,
+            nbr_faulty_replicas,
+            transmition_delay,
+            slowdown_factor,
+            transmition_delay_distribution: Poisson::new(transmition_delay as f64).unwrap_or(Poisson::new(1.0).unwrap()),
+            n_ack,
+            report_folder,
+            creation: SystemTime::now(),
+        }
+    }
+
+    pub fn with_default_report_folder(
         nbr_clients: usize,
         nbr_replicas: usize,
         nbr_faulty_clients: usize,
@@ -31,12 +61,39 @@ impl NetworkInfo {
             nbr_replicas,
             nbr_faulty_clients,
             nbr_faulty_replicas,
-            transmition_delay: Poisson::new(transmition_delay as f64).unwrap(),
+            transmition_delay,
+            slowdown_factor: DEFAULT_SLOWDOWN_FACTOR,
+            transmition_delay_distribution: Poisson::new(transmition_delay as f64).unwrap_or(Poisson::new(1.0).unwrap()),
             n_ack,
+            report_folder: String::from(DEFAULT_REPORT_FOLDER),
             creation: SystemTime::now(),
         }
     }
 
+    pub fn default(
+        nbr_clients: usize,
+        nbr_replicas: usize,
+        nbr_faulty_clients: usize,
+        nbr_faulty_replicas: usize,
+        transmition_delay: u64,
+    ) -> Self {
+        Self::with_default_report_folder(nbr_clients, nbr_replicas, nbr_faulty_clients, nbr_faulty_replicas, transmition_delay, nbr_replicas)
+    }
+
+    pub fn default_parameters(
+        nbr_clients: usize,
+        nbr_replicas: usize,
+        nbr_faulty_clients: usize,
+        nbr_faulty_replicas: usize,
+        transmition_delay: u64,
+        slowdown_factor: f64,
+        report_folder: String,) -> Self {
+            Self::new(nbr_clients, nbr_replicas, nbr_faulty_clients, nbr_faulty_replicas, transmition_delay, slowdown_factor, report_folder,nbr_replicas)
+        }
+
+    pub fn report_folder(&self) -> &String {
+        &self.report_folder
+    }
     pub fn nbr_clients(&self) -> usize {
         self.nbr_clients
     }
@@ -46,7 +103,7 @@ impl NetworkInfo {
     }
 
     pub fn size(&self) -> usize {
-        self.nbr_clients + self.nbr_replicas
+        self.nbr_clients + self.nbr_replicas + self.nbr_faulty_clients + self.nbr_faulty_replicas
     }
 
     pub fn nbr_faulty_clients(&self) -> usize {
@@ -65,9 +122,11 @@ impl NetworkInfo {
         self.nbr_faulty_replicas()
     }
 
-    pub fn consensus_slowdown(&self) -> u64 {
-        1
+    pub fn slowdown_factor(&self) -> f64 {
+        self.slowdown_factor
     }
+
+
 
     pub fn compute_ranges(&self) -> (Range<usize>, Range<usize>, Range<usize>, Range<usize>) {
         let client_start: usize = 0;
@@ -88,10 +147,16 @@ impl NetworkInfo {
     }
 
     pub fn transmition_delay(&self) -> u64 {
+        if self.transmition_delay == 0 {
+            return 0;
+        }
         let mut rng = thread_rng();
-        self.transmition_delay.sample(&mut rng) as u64
+        self.transmition_delay_distribution.sample(&mut rng) as u64
     }
 
+    pub fn consensus_transmition_delay(&self) -> u64 {
+        (self.transmition_delay() as f64 * self.slowdown_factor) as u64
+    }
     pub fn elapsed(&self) -> Result<Duration, SystemTimeError> {
         self.creation.elapsed()
     }
@@ -103,7 +168,7 @@ mod tests {
 
     #[test]
     fn compute_range_correclty() {
-        let info = NetworkInfo::new(5, 5, 2, 2, 1, 0);
+        let info = NetworkInfo::with_default_report_folder(5, 5, 2, 2, 1, 0);
         let (client_range, faulty_client_range, replica_range, faulty_replica_range) =
             info.compute_ranges();
 

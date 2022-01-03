@@ -13,12 +13,13 @@ pub enum CommandResult {
 
 impl Display for CommandResult {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
+        let str = match self {
             CommandResult::Success(data) => match data {
-                Some(amount) => write!(f, "SUCCESS < DATA: {}>", *amount),
-                None => write!(f, "SUCCESS"),
+                Some(amount) => format!("SUCCESS <DATA: {}>", *amount),
+                None => format!("SUCCESS"),
             },
-            CommandResult::Failure(reason) => write!(f, "FAILURE <{}>", *reason),
-        }
+            CommandResult::Failure(reason) => format!("FAILURE <{}>", *reason),
+        };
+        write!(f, "{:<32.32}", str)
     }
 }

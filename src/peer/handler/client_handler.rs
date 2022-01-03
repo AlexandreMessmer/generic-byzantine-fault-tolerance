@@ -3,7 +3,7 @@ use talk::{crypto::Identity, unicast::Acknowledger};
 use crate::{
     database::client_database::{ClientDatabase, RequestResult},
     network::NetworkInfo,
-    peer::peer::PeerId,
+    peer::{peer::PeerId, shutdownable::Shutdownable},
     talk::{Command, CommandId, Feedback, Instruction, Message, Phase},
 };
 
@@ -28,7 +28,7 @@ impl ClientHandler {
         // Do not execute if there is a db error
         if self.database.contains_request(&id) {
             self.communicator
-                .send_feedback(Feedback::Error(format!(
+                .send_feedback(Feedback::Error(*self.id(), format!(
                     "Request #{} is already handled",
                     id
                 )))
@@ -42,7 +42,7 @@ impl ClientHandler {
 
     fn handle_instruction_testing(&mut self) {
         self.communicator
-            .spawn_send_feedback(Feedback::Acknowledgement);
+            .spawn_send_feedback(Feedback::Acknowledgement(*self.id()));
     }
 
     /// Handling messages functions
@@ -62,7 +62,7 @@ impl ClientHandler {
             if count >= bound {
                 self.database.complete_request(id).unwrap();
                 self.communicator
-                    .send_feedback(Feedback::Result(command_result))
+                    .send_feedback(Feedback::Result(*self.id(), command_result))
                     .await
                     .unwrap();
             }
@@ -85,6 +85,7 @@ impl ClientHandler {
                 .await;
         }
     }
+
 }
 #[async_trait::async_trait]
 impl Handler<Message> for ClientHandler {
@@ -105,7 +106,7 @@ impl Handler<Message> for ClientHandler {
         match instruction {
             Instruction::Execute(command) => self.handle_instruction_execute(command).await,
             Instruction::Testing => self.handle_instruction_testing(),
-            _ => {}
+            Instruction::Shutdown => self.communicator.shutdown().await,
         }
     }
 
@@ -117,6 +118,7 @@ impl Handler<Message> for ClientHandler {
         self.communicator.network_info()
     }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -139,7 +141,7 @@ mod tests {
     #[tokio::test]
     async fn instruction_execute_test() {
         /* Template to build a ClientHandler */
-        let network_info = NetworkInfo::new(1, 2, 0, 0, 10, 1);
+        let network_info = NetworkInfo::with_default_report_folder(1, 2, 0, 0, 10, 1);
         let (mut keys, mut senders, mut receivers) = Utils::mock_network(3).await;
         let (client, sender, mut _receiver) = Utils::pop(&mut keys, &mut senders, &mut receivers);
         let (replica1, _sender1, mut receiver1) =
@@ -188,7 +190,7 @@ mod tests {
 
     #[tokio::test]
     async fn correclty_handle_request() {
-        let network_info = NetworkInfo::new(1, 2, 0, 0, 10, 7);
+        let network_info = NetworkInfo::with_default_report_folder(1, 2, 0, 0, 10, 7);
         let (mut keys, mut senders, mut receivers) = Utils::mock_network(3).await;
         let (client, sender, mut receiver) = Utils::pop(&mut keys, &mut senders, &mut receivers);
         let (replica1, sender1, mut _receiver1) =
@@ -252,7 +254,7 @@ mod tests {
         client.database.add_request(cmd.id().clone()).unwrap();
 
         let mut i = 0;
-        let mut feedback: Feedback = Feedback::Error(String::new());
+        let mut feedback: Feedback = Feedback::Error(*client.id(), String::new());
         while {
             match timeout(Duration::from_millis(100), tx.recv()).await {
                 Ok(v) => {
@@ -280,7 +282,7 @@ mod tests {
         }
 
         assert_eq!(i, network_info.n_ack());
-        assert_eq!(feedback, Feedback::Result(CommandResult::Success(None)));
+        assert_eq!(feedback, Feedback::Result(*client.id(), CommandResult::Success(None)));
 
         // Needs exactly 2 + 1 CHK
         let cmd = Command::new(0, Action::Register);
@@ -310,6 +312,6 @@ mod tests {
             .await
             .expect("Timeout fb")
             .unwrap();
-        assert_eq!(res, Feedback::Result(CommandResult::Success(None)));
+        assert_eq!(res, Feedback::Result(*client.id(), CommandResult::Success(None)));
     }
 }

@@ -12,7 +12,7 @@ use tokio::{task::JoinHandle, time::sleep};
 use crate::{
     crypto::identity_table::IdentityTable,
     network::NetworkInfo,
-    peer::peer::PeerId,
+    peer::{peer::PeerId, shutdownable::Shutdownable},
     talk::{Feedback, FeedbackSender},
     types::*,
 };
@@ -109,8 +109,15 @@ where
     async fn transmit(delay: u64) {
         sleep(Duration::from_millis(delay)).await;
     }
+
 }
 
+#[async_trait::async_trait]
+impl<T> Shutdownable for Communicator<T> where T: UnicastMessage + Clone {
+    async fn shutdown(&mut self) {
+        self.send_feedback(Feedback::ShutdownComplete(self.id)).await.expect("Failed to complete the shutdown");
+    }
+}
 #[cfg(test)]
 mod tests {
 
@@ -127,7 +134,7 @@ mod tests {
 
     #[tokio::test]
     async fn communication_test() {
-        let network_info = NetworkInfo::new(0, 0, 0, 0, 1, 0);
+        let network_info = NetworkInfo::with_default_report_folder(0, 0, 0, 0, 1, 0);
         let (mut keys, mut senders, mut receivers) = Utils::mock_network(2).await;
         let (key, sender, _) = Utils::pop(&mut keys, &mut senders, &mut receivers);
         let (target, _, mut receiver) = Utils::pop(&mut keys, &mut senders, &mut receivers);

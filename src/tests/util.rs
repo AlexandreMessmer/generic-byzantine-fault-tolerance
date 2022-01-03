@@ -1,4 +1,3 @@
-use futures::channel::mpsc::Receiver;
 use network_info::NetworkInfo;
 use talk::{crypto::Identity, unicast::test::UnicastSystem};
 
