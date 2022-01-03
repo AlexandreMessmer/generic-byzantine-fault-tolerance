@@ -33,7 +33,10 @@ impl NetworkInfo {
         report_folder: String,
         n_ack: usize,
     ) -> Self {
-        assert!(5 * nbr_faulty_replicas < nbr_replicas, "Network does not satisfy the resilience condition");
+        assert!(
+            5 * nbr_faulty_replicas < nbr_replicas,
+            "Network does not satisfy the resilience condition"
+        );
         Self {
             nbr_clients,
             nbr_replicas,
@@ -41,7 +44,8 @@ impl NetworkInfo {
             nbr_faulty_replicas,
             transmition_delay,
             slowdown_factor,
-            transmition_delay_distribution: Poisson::new(transmition_delay as f64).unwrap_or(Poisson::new(1.0).unwrap()),
+            transmition_delay_distribution: Poisson::new(transmition_delay as f64)
+                .unwrap_or(Poisson::new(1.0).unwrap()),
             n_ack,
             report_folder,
             creation: SystemTime::now(),
@@ -63,7 +67,8 @@ impl NetworkInfo {
             nbr_faulty_replicas,
             transmition_delay,
             slowdown_factor: DEFAULT_SLOWDOWN_FACTOR,
-            transmition_delay_distribution: Poisson::new(transmition_delay as f64).unwrap_or(Poisson::new(1.0).unwrap()),
+            transmition_delay_distribution: Poisson::new(transmition_delay as f64)
+                .unwrap_or(Poisson::new(1.0).unwrap()),
             n_ack,
             report_folder: String::from(DEFAULT_REPORT_FOLDER),
             creation: SystemTime::now(),
@@ -77,7 +82,14 @@ impl NetworkInfo {
         nbr_faulty_replicas: usize,
         transmition_delay: u64,
     ) -> Self {
-        Self::with_default_report_folder(nbr_clients, nbr_replicas, nbr_faulty_clients, nbr_faulty_replicas, transmition_delay, nbr_replicas)
+        Self::with_default_report_folder(
+            nbr_clients,
+            nbr_replicas,
+            nbr_faulty_clients,
+            nbr_faulty_replicas,
+            transmition_delay,
+            nbr_replicas,
+        )
     }
 
     pub fn default_parameters(
@@ -87,9 +99,19 @@ impl NetworkInfo {
         nbr_faulty_replicas: usize,
         transmition_delay: u64,
         slowdown_factor: f64,
-        report_folder: String,) -> Self {
-            Self::new(nbr_clients, nbr_replicas, nbr_faulty_clients, nbr_faulty_replicas, transmition_delay, slowdown_factor, report_folder,nbr_replicas)
-        }
+        report_folder: String,
+    ) -> Self {
+        Self::new(
+            nbr_clients,
+            nbr_replicas,
+            nbr_faulty_clients,
+            nbr_faulty_replicas,
+            transmition_delay,
+            slowdown_factor,
+            report_folder,
+            nbr_replicas,
+        )
+    }
 
     pub fn report_folder(&self) -> &String {
         &self.report_folder
@@ -125,8 +147,6 @@ impl NetworkInfo {
     pub fn slowdown_factor(&self) -> f64 {
         self.slowdown_factor
     }
-
-
 
     pub fn compute_ranges(&self) -> (Range<usize>, Range<usize>, Range<usize>, Range<usize>) {
         let client_start: usize = 0;

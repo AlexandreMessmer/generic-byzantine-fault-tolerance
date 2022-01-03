@@ -14,14 +14,11 @@ pub struct FaultyReplicaHandler {
 
 impl FaultyReplicaHandler {
     pub fn new(communicator: Communicator<Message>) -> Self {
-        FaultyReplicaHandler { communicator}
+        FaultyReplicaHandler { communicator }
     }
 
     fn handle_message_testing(&self) {
-        print!(
-            "Faulty replica #{} received the test",
-            self.id()
-        );
+        print!("Faulty replica #{} received the test", self.id());
     }
 }
 

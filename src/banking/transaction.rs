@@ -78,15 +78,20 @@ impl Display for Status {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
-    use crate::{talk::{CommandResult, Command}, banking::action::Action};
+    use crate::{
+        banking::action::Action,
+        talk::{Command, CommandResult},
+    };
 
     use super::Transaction;
 
     #[test]
     fn print_test() {
-        let t = Transaction::from_command(&Command::new(11, Action::Deposit(10)), &CommandResult::Failure(format!("123456789012345678901234567890")));
+        let t = Transaction::from_command(
+            &Command::new(11, Action::Deposit(10)),
+            &CommandResult::Failure(format!("123456789012345678901234567890")),
+        );
     }
 }

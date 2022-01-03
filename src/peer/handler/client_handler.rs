@@ -28,10 +28,10 @@ impl ClientHandler {
         // Do not execute if there is a db error
         if self.database.contains_request(&id) {
             self.communicator
-                .send_feedback(Feedback::Error(*self.id(), format!(
-                    "Request #{} is already handled",
-                    id
-                )))
+                .send_feedback(Feedback::Error(
+                    *self.id(),
+                    format!("Request #{} is already handled", id),
+                ))
                 .await
                 .unwrap();
         } else {
@@ -85,7 +85,6 @@ impl ClientHandler {
                 .await;
         }
     }
-
 }
 #[async_trait::async_trait]
 impl Handler<Message> for ClientHandler {
@@ -118,7 +117,6 @@ impl Handler<Message> for ClientHandler {
         self.communicator.network_info()
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -282,7 +280,10 @@ mod tests {
         }
 
         assert_eq!(i, network_info.n_ack());
-        assert_eq!(feedback, Feedback::Result(*client.id(), CommandResult::Success(None)));
+        assert_eq!(
+            feedback,
+            Feedback::Result(*client.id(), CommandResult::Success(None))
+        );
 
         // Needs exactly 2 + 1 CHK
         let cmd = Command::new(0, Action::Register);
@@ -312,6 +313,9 @@ mod tests {
             .await
             .expect("Timeout fb")
             .unwrap();
-        assert_eq!(res, Feedback::Result(*client.id(), CommandResult::Success(None)));
+        assert_eq!(
+            res,
+            Feedback::Result(*client.id(), CommandResult::Success(None))
+        );
     }
 }

@@ -1,4 +1,4 @@
-use talk::{unicast::Message, crypto::Identity};
+use talk::{crypto::Identity, unicast::Message};
 
 use super::{handler::Handler, runner::Runner};
 use crate::{network::network_info::NetworkInfo, talk::Instruction, types::*};
@@ -38,7 +38,6 @@ where
     pub fn network_info(&self) -> &NetworkInfo {
         self.handler.network_info()
     }
-
 }
 
 #[async_trait::async_trait]
@@ -49,7 +48,11 @@ where
     async fn run(mut self) {
         let id = self.id().clone();
         let network_info = self.network_info().clone();
-        println!("[{:#?}] Peer #{}: running", network_info.elapsed().unwrap(), id);
+        println!(
+            "[{:#?}] Peer #{}: running",
+            network_info.elapsed().unwrap(),
+            id
+        );
 
         let handler = &mut self.handler;
         loop {
@@ -71,6 +74,10 @@ where
             }
         }
 
-        println!("[{:#?}] Peer #{}: shutdown", network_info.elapsed().unwrap(), self.id())
+        println!(
+            "[{:#?}] Peer #{}: shutdown",
+            network_info.elapsed().unwrap(),
+            self.id()
+        )
     }
 }

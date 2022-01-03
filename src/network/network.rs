@@ -1,4 +1,4 @@
-use std::collections::{HashSet, HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::ops::Range;
 use std::slice::SliceIndex;
 use std::sync::Arc;
@@ -10,8 +10,8 @@ use futures::future::join_all;
 use futures::sink::Feed;
 use talk::time::{timeout, Timeout};
 use talk::{crypto::Identity, sync::fuse::Fuse, unicast::test::UnicastSystem};
-use tokio::sync::{mpsc, Mutex};
 use tokio::sync::mpsc::error::SendError;
+use tokio::sync::{mpsc, Mutex};
 use tokio::task::JoinHandle;
 
 use super::{NetworkInfo, NetworkPeer};
@@ -19,7 +19,7 @@ use super::{NetworkInfo, NetworkPeer};
 use crate::banking::action::Action;
 use crate::banking::banking::Money;
 use crate::peer::coordinator::Coordinator;
-use crate::talk::{Command, instruction};
+use crate::talk::{instruction, Command};
 use crate::{
     crypto::identity_table::{IdentityTable, IdentityTableBuilder},
     peer::{handler::HandlerBuilder, peer::PeerId, runner::Runner, Peer},
@@ -215,17 +215,26 @@ impl Network {
 
     /// Execute the given command and wait for the result
     fn execute(&mut self, client: PeerId, command: Command) -> bool {
-        self.pending_execution.get_mut(&client).map(|pending_commands| {
-            pending_commands.push_back(command);
-            true
-        }).unwrap_or(false)
+        self.pending_execution
+            .get_mut(&client)
+            .map(|pending_commands| {
+                pending_commands.push_back(command);
+                true
+            })
+            .unwrap_or(false)
     }
 
     async fn execute_next(&mut self, client: PeerId) -> bool {
-        let command = self.pending_execution.get_mut(&client).map(|vec| vec.pop_front()).flatten();
+        let command = self
+            .pending_execution
+            .get_mut(&client)
+            .map(|vec| vec.pop_front())
+            .flatten();
         if let Some(command) = command {
             let instruction = Instruction::Execute(command.clone());
-            self.send_instruction(instruction, client).await.expect(&format!("#{} failed to execute {:#?}", client, command));
+            self.send_instruction(instruction, client)
+                .await
+                .expect(&format!("#{} failed to execute {:#?}", client, command));
             return true;
         }
         false
@@ -233,7 +242,7 @@ impl Network {
 
     // Assume that no client is faulty
     async fn execute_all(&mut self) {
-        // Execute one action for every peer 
+        // Execute one action for every peer
         for i in 0..self.network_info.nbr_clients() {
             self.execute_next(i).await;
         }
@@ -245,11 +254,18 @@ impl Network {
             match feedback {
                 Feedback::Error(id, msg) => println!("Client #{} failed: {}", id, msg),
                 Feedback::Acknowledgement(id) => println!("Client #{} request is successful", id),
-                Feedback::Result(id, res) => println!("Client #{} request is successful ({})", id, res),
-                Feedback::ShutdownComplete(_) => {},
+                Feedback::Result(id, res) => {
+                    println!("Client #{} request is successful ({})", id, res)
+                }
+                Feedback::ShutdownComplete(_) => {}
             }
             if !has_next {
-                if self.pending_execution.clone().iter_mut().all(|(_, pending)| pending.is_empty()) {
+                if self
+                    .pending_execution
+                    .clone()
+                    .iter_mut()
+                    .all(|(_, pending)| pending.is_empty())
+                {
                     break;
                 }
             }
@@ -319,7 +335,9 @@ impl Network {
     /// Timeout with a default timer.
     pub async fn wait_until_shutdown(&mut self) {
         let mut i = 0;
-        while let Ok(Some(feedback)) = timeout(SHUTDOWN_TIMEOUT.clone(), self.receive_feedback()).await {
+        while let Ok(Some(feedback)) =
+            timeout(SHUTDOWN_TIMEOUT.clone(), self.receive_feedback()).await
+        {
             if let Feedback::ShutdownComplete(_) = feedback {
                 i += 1;
             }
@@ -332,7 +350,10 @@ impl Network {
 
 impl Drop for Network {
     fn drop(&mut self) {
-        println!("[{:#?}] Network: shutdown", self.network_info.elapsed().unwrap());
+        println!(
+            "[{:#?}] Network: shutdown",
+            self.network_info.elapsed().unwrap()
+        );
     }
 }
 
@@ -379,7 +400,10 @@ mod tests {
         while let Ok(Some(feedback)) =
             timeout(Duration::from_secs(1), network.receive_feedback()).await
         {
-            if let Feedback::Acknowledgement(_) = feedback {} else {panic!()}
+            if let Feedback::Acknowledgement(_) = feedback {
+            } else {
+                panic!()
+            }
         }
     }
 
@@ -387,7 +411,7 @@ mod tests {
     async fn end_to_end_test() {
         let network_info = NetworkInfo::default(3, 11, 3, 0, 20);
         let mut network = Network::setup(network_info).await;
-        
+
         network.register_all();
         for i in 0..3 {
             for _ in 0..10 {
@@ -396,12 +420,12 @@ mod tests {
         }
         network.execute_all().await;
         network.shutdown().await;
-
     }
 
     #[tokio::test]
     async fn end_to_end_test2() {
-        let network_info = NetworkInfo::default_parameters(3, 11, 3, 0, 20, 1.0, String::from("resources/test1"));
+        let network_info =
+            NetworkInfo::default_parameters(3, 11, 3, 0, 20, 1.0, String::from("resources/test1"));
         let mut network = Network::setup(network_info).await;
         network.register_all();
         for i in 0..3 {
@@ -413,6 +437,5 @@ mod tests {
 
         network.execute_all().await;
         network.shutdown().await;
-
     }
 }

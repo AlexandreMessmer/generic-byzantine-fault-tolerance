@@ -6,7 +6,7 @@ use crate::{
     talk::{Instruction, Message},
 };
 
-use super::{Communicator, Handler, client_handler, ClientHandler};
+use super::{client_handler, ClientHandler, Communicator, Handler};
 
 pub struct FaultyClientHandler {
     communicator: Communicator<Message>,
@@ -14,7 +14,7 @@ pub struct FaultyClientHandler {
 
 impl FaultyClientHandler {
     pub fn new(communicator: Communicator<Message>) -> Self {
-        FaultyClientHandler { communicator}
+        FaultyClientHandler { communicator }
     }
 
     fn handle_message_testing(&self) {

@@ -38,7 +38,6 @@ impl ReplicaDatabase {
     /// Returns true if the value was not present
     pub fn receive_command(&mut self, command: Command) -> bool {
         self.received.insert(command)
-
     }
 
     pub fn receive_set(&mut self, set: &mut Set) {

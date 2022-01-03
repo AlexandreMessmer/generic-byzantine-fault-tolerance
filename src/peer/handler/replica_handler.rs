@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, time::Duration, path::Path, fs::File, io::Write};
+use std::{collections::BTreeSet, fs::File, io::Write, path::Path, time::Duration};
 
 use talk::{crypto::Identity, unicast::Acknowledger};
 use tokio::sync::broadcast::error::RecvError;
@@ -12,10 +12,12 @@ use crate::{
     network::NetworkInfo,
     peer::{
         coordinator::{ProposalData, ProposalSignedData},
-        peer::PeerId, shutdownable::Shutdownable,
+        peer::PeerId,
+        shutdownable::Shutdownable,
     },
+    relation::{conflict::ConflictingRelation, Relation},
     talk::{Command, CommandResult, Instruction, Message, Phase, RoundNumber},
-    types::*, relation::{conflict::ConflictingRelation, Relation},
+    types::*,
 };
 
 use super::{communicator::Communicator, Handler};
@@ -27,7 +29,6 @@ pub struct ReplicaHandler {
     database: ReplicaDatabase,
     received_to_resolve: Set, // Cache the received commands that need to resolve the conflicting relation
     // If a command is not in this set, it does not conflict with any other command in received \ delivered.
-
     banking: Banking,
 }
 
@@ -72,7 +73,6 @@ impl ReplicaHandler {
                 Phase::ACK => self.database.receive_set(&mut set),
                 Phase::CHK => self.database.receive_set(&mut set),
             }
-
         }
     }
 
@@ -315,7 +315,11 @@ impl ReplicaHandler {
     }
 
     pub fn write_logs(&self) {
-        let path = format!("{}/log_replica{}.txt", self.network_info().report_folder(), self.communicator.id());
+        let path = format!(
+            "{}/log_replica{}.txt",
+            self.network_info().report_folder(),
+            self.communicator.id()
+        );
         let path = Path::new(&path);
         let display = path.display();
 
@@ -329,9 +333,12 @@ impl ReplicaHandler {
         }
         write!(file, "{:#?} \n", self.banking.clients()).expect("Fails to write logs");
 
-        println!("[{:#?}] #{} wrote logs", self.network_info().elapsed().unwrap(), self.id())
+        println!(
+            "[{:#?}] #{} wrote logs",
+            self.network_info().elapsed().unwrap(),
+            self.id()
+        )
     }
-
 }
 
 #[async_trait::async_trait]
@@ -910,10 +917,10 @@ mod tests {
             coordinator.proposer(),
             coordinator.subscribe(),
         );
-        
+
         set.insert(Command::new(0, Action::Deposit(10)));
         set.insert(Command::new(1, Action::Get));
-        replica.handle_replica_broadcast(0, set.clone(), Phase::ACK); 
+        replica.handle_replica_broadcast(0, set.clone(), Phase::ACK);
 
         assert_eq!(replica.is_there_conflict(&set), false);
 

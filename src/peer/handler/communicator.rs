@@ -109,13 +109,17 @@ where
     async fn transmit(delay: u64) {
         sleep(Duration::from_millis(delay)).await;
     }
-
 }
 
 #[async_trait::async_trait]
-impl<T> Shutdownable for Communicator<T> where T: UnicastMessage + Clone {
+impl<T> Shutdownable for Communicator<T>
+where
+    T: UnicastMessage + Clone,
+{
     async fn shutdown(&mut self) {
-        self.send_feedback(Feedback::ShutdownComplete(self.id)).await.expect("Failed to complete the shutdown");
+        self.send_feedback(Feedback::ShutdownComplete(self.id))
+            .await
+            .expect("Failed to complete the shutdown");
     }
 }
 #[cfg(test)]
