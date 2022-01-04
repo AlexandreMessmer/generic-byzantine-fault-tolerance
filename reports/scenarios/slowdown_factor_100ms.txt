@@ -1,0 +1,261 @@
++---------------------------------------------------+ 
+START FUNCTION: f(slowdown_factor) on [1, 20]s with a step of 2ms  
++---------------------------------------------------+ 
+SCENARIO: SLOWDOWN FACTOR (P = 0): 1 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.1s 
+		 - probability of conflict: 0% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 75.572028ss 
+SCENARIO: SLOWDOWN FACTOR (P = 1): 1 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.1s 
+		 - probability of conflict: 1% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 85.897378ss 
+SCENARIO: SLOWDOWN FACTOR (P = 5): 1 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.1s 
+		 - probability of conflict: 5% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 85.875343ss 
+SCENARIO: SLOWDOWN FACTOR (P = 10): 1 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.1s 
+		 - probability of conflict: 10% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 85.903201ss 
+SCENARIO: SLOWDOWN FACTOR (P = 20): 1 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.1s 
+		 - probability of conflict: 20% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 85.939212ss 
+SCENARIO: SLOWDOWN FACTOR (P = 0): 2 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.2s 
+		 - probability of conflict: 0% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 75.593417ss 
+SCENARIO: SLOWDOWN FACTOR (P = 1): 2 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.2s 
+		 - probability of conflict: 1% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 85.952326ss 
+SCENARIO: SLOWDOWN FACTOR (P = 5): 2 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.2s 
+		 - probability of conflict: 5% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 86.298525ss 
+SCENARIO: SLOWDOWN FACTOR (P = 10): 2 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.2s 
+		 - probability of conflict: 10% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 86.925932ss 
+SCENARIO: SLOWDOWN FACTOR (P = 20): 2 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.2s 
+		 - probability of conflict: 20% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 87.99192ss 
+SCENARIO: SLOWDOWN FACTOR (P = 0): 4 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.4s 
+		 - probability of conflict: 0% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 75.776173ss 
+SCENARIO: SLOWDOWN FACTOR (P = 1): 4 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.4s 
+		 - probability of conflict: 1% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 86.475418ss 
+SCENARIO: SLOWDOWN FACTOR (P = 5): 4 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.4s 
+		 - probability of conflict: 5% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 87.59783ss 
+SCENARIO: SLOWDOWN FACTOR (P = 10): 4 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.4s 
+		 - probability of conflict: 10% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 89.117403ss 
+SCENARIO: SLOWDOWN FACTOR (P = 20): 4 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.4s 
+		 - probability of conflict: 20% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 92.280925ss 
+SCENARIO: SLOWDOWN FACTOR (P = 0): 8 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.8s 
+		 - probability of conflict: 0% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 76.277153ss 
+SCENARIO: SLOWDOWN FACTOR (P = 1): 8 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.8s 
+		 - probability of conflict: 1% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 87.282926ss 
+SCENARIO: SLOWDOWN FACTOR (P = 5): 8 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.8s 
+		 - probability of conflict: 5% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 90.110285ss 
+SCENARIO: SLOWDOWN FACTOR (P = 10): 8 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.8s 
+		 - probability of conflict: 10% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 93.673788ss 
+SCENARIO: SLOWDOWN FACTOR (P = 20): 8 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 0.8s 
+		 - probability of conflict: 20% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 100.66935ss 
+SCENARIO: SLOWDOWN FACTOR (P = 0): 16 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 1.6s 
+		 - probability of conflict: 0% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 77.003621ss 
+SCENARIO: SLOWDOWN FACTOR (P = 1): 16 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 1.6s 
+		 - probability of conflict: 1% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 88.888566ss 
+SCENARIO: SLOWDOWN FACTOR (P = 5): 16 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 1.6s 
+		 - probability of conflict: 5% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 94.947675ss 
+SCENARIO: SLOWDOWN FACTOR (P = 10): 16 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 1.6s 
+		 - probability of conflict: 10% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 102.43235ss 
+SCENARIO: SLOWDOWN FACTOR (P = 20): 16 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 1) 
+		 - transmission delay: 100ms 
+		 - consensus duration: 1.6s 
+		 - probability of conflict: 20% 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 117.40914ss 
++---------------------------------------------------+ 
+RESULTS:  
+	 	 f_10(100) = 85.903201s 
+	 	 f_10(100) = 86.925932s 
+	 	 f_10(100) = 89.117403s 
+	 	 f_10(100) = 93.673788s 
+	 	 f_10(100) = 102.43235s 
+ 
+	 	 f_5(100) = 85.875343s 
+	 	 f_5(100) = 86.298525s 
+	 	 f_5(100) = 87.59783s 
+	 	 f_5(100) = 90.110285s 
+	 	 f_5(100) = 94.947675s 
+ 
+	 	 f_20(100) = 85.939212s 
+	 	 f_20(100) = 87.99192s 
+	 	 f_20(100) = 92.280925s 
+	 	 f_20(100) = 100.66935s 
+	 	 f_20(100) = 117.40914s 
+ 
+	 	 f_1(100) = 85.897378s 
+	 	 f_1(100) = 85.952326s 
+	 	 f_1(100) = 86.475418s 
+	 	 f_1(100) = 87.282926s 
+	 	 f_1(100) = 88.888566s 
+ 
+	 	 f_0(100) = 75.572028s 
+	 	 f_0(100) = 75.593417s 
+	 	 f_0(100) = 75.776173s 
+	 	 f_0(100) = 76.277153s 
+	 	 f_0(100) = 77.003621s 
+ 
++---------------------------------------------------+ 
