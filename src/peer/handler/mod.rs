@@ -47,7 +47,11 @@ impl HandlerBuilder {
                 coordinator.proposer(),
                 coordinator.subscribe(),
             )),
-            NetworkPeer::FaultyReplica => Box::new(FaultyReplicaHandler::new(peer_handler)),
+            NetworkPeer::FaultyReplica => Box::new(FaultyReplicaHandler::new(ReplicaHandler::new(
+                peer_handler,
+                coordinator.proposer(),
+                coordinator.subscribe(),
+            ))),
         }
     }
 

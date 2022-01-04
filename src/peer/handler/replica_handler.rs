@@ -29,7 +29,46 @@ pub struct ReplicaHandler {
     database: ReplicaDatabase,
     received_to_resolve: Set, // Cache the received commands that need to resolve the conflicting relation
     // If a command is not in this set, it does not conflict with any other command in received \ delivered.
+    // NB: deprecated, leads to bug with the coordinator
     banking: Banking,
+}
+
+#[async_trait::async_trait]
+impl Handler<Message> for ReplicaHandler {
+    async fn handle_message(&mut self, _id: Identity, message: Message, _ack: Acknowledger) {
+        match message {
+            Message::Testing => {
+                println!("Replica #{} received the test", self.communicator.id())
+            }
+            Message::Command(command) => self.handle_command(command),
+            Message::ReplicaBroadcast(k, set, phase) => {
+                self.handle_replica_broadcast(k, set, phase)
+            }
+            _ => {}
+        }
+        let process = self.process_commands();
+        let process = timeout(Duration::from_secs(60), process);
+        process.await.unwrap(); // Crash sometimes -> WHY ?
+    }
+    async fn handle_instruction(&mut self, instruction: Instruction) {
+        match instruction {
+            Instruction::Testing => {
+                println!("Replica #{} received the test", self.communicator.id())
+            }
+            Instruction::Shutdown => {
+                self.shutdown().await;
+            }
+            _ => {}
+        }
+    }
+
+    fn id(&self) -> &PeerId {
+        self.communicator.id()
+    }
+
+    fn network_info(&self) -> &NetworkInfo {
+        self.communicator.network_info()
+    }
 }
 
 impl ReplicaHandler {
@@ -48,7 +87,15 @@ impl ReplicaHandler {
         }
     }
 
-    fn handle_command(&mut self, command: Command) {
+    pub async fn shutdown(&mut self) {
+        if self.communicator.network_info().write_logs() {
+            self.write_logs();
+        }
+
+        self.communicator.shutdown().await;
+    }
+
+    pub fn handle_command(&mut self, command: Command) {
         if self.database.receive_command(command.clone()) {
             if !self.database.delivered().contains(&command) {
                 self.received_to_resolve.insert(command);
@@ -57,18 +104,14 @@ impl ReplicaHandler {
     }
 
     /// Implements task 1b and 1c
-    fn handle_replica_broadcast(
+    pub fn handle_replica_broadcast(
         &mut self,
         round: RoundNumber,
         mut set: BTreeSet<Command>,
         phase: Phase,
     ) {
         if round.eq(self.database.round()) {
-            for cmd in set.iter() {
-                if !self.database.delivered().contains(cmd) {
-                    self.received_to_resolve.insert(cmd.clone());
-                }
-            }
+            self.received_to_resolve.append(&mut set.difference(self.database.delivered()).cloned().collect());
             match phase {
                 Phase::ACK => self.database.receive_set(&mut set),
                 Phase::CHK => self.database.receive_set(&mut set),
@@ -95,10 +138,13 @@ impl ReplicaHandler {
     }
 
     /// Defines task 2
-    async fn process_commands(&mut self) {
+    pub async fn process_commands(&mut self) {
         let (unprocessed_commands, received_diff_delivered) = self.compute_unprocessed_commands();
         if Self::is_pending(&unprocessed_commands) {
-            if !self.is_there_conflict(&received_diff_delivered) {
+            if !ConflictingRelation::is_conflicting(
+                &received_diff_delivered,
+                &received_diff_delivered,
+            ) {
                 self.received_to_resolve.clear();
                 let unprocessed_commands = unprocessed_commands.into_iter();
                 for command in unprocessed_commands {
@@ -112,15 +158,18 @@ impl ReplicaHandler {
             } else {
                 self.broadcast_to_replicas(received_diff_delivered, Phase::CHK)
                     .await;
-                let (k, nc_set, c_set) = self
-                    .propose((
+                let (k, nc_set, c_set) = timeout(
+                    Duration::from_secs(300),
+                    self.propose((
                         self.communicator.key().clone(),
                         *self.database.round(),
                         self.database.pending().clone(),
                         unprocessed_commands,
-                    ))
-                    .await
-                    .expect("Fails to unwrap the proposal");
+                    )),
+                )
+                .await
+                .expect("Timeout")
+                .expect("Fails to unwrap the proposal");
                 if k.eq(self.database.round()) {
                     let pending = self.database.pending();
                     let pending_diff_nc_set: Set = pending.difference(&nc_set).cloned().collect();
@@ -161,11 +210,11 @@ impl ReplicaHandler {
 
                     self.database.delivered_all(&nc_set);
                     self.database.delivered_all(&c_set);
-
+                    self.received_to_resolve = self.received_to_resolve.difference(&nc_set).cloned().collect();
+                    self.received_to_resolve = self.received_to_resolve.difference(&c_set).cloned().collect();
                     self.database.increment_round();
                     self.database.reset_pending();
                     self.database.reset_result();
-                    self.received_to_resolve.clear();
                 }
             }
         }
@@ -255,7 +304,7 @@ impl ReplicaHandler {
                 .map(|_res| CommandResult::Success(None))
                 .unwrap_or(CommandResult::Failure(format!(
                     "Client #{} cannot deposit because he is not registered",
-                    self.communicator.id()
+                    id
                 ))),
             crate::banking::action::Action::Withdraw(amount) => self
                 .banking
@@ -325,7 +374,10 @@ impl ReplicaHandler {
 
         // Open a file in write-only mode, returns `io::Result<File>`
         let mut file = match File::create(&path) {
-            Err(why) => panic!("Couldn't create {}: {}", display, why),
+            Err(why) => {
+                println!("Couldn't create {}: {}", display, why);
+                return;
+            }
             Ok(file) => file,
         };
         for transaction in self.database.logs().iter() {
@@ -338,45 +390,6 @@ impl ReplicaHandler {
             self.network_info().elapsed().unwrap(),
             self.id()
         )
-    }
-}
-
-#[async_trait::async_trait]
-impl Handler<Message> for ReplicaHandler {
-    async fn handle_message(&mut self, _id: Identity, message: Message, _ack: Acknowledger) {
-        match message {
-            Message::Testing => {
-                println!("Replica #{} received the test", self.communicator.id())
-            }
-            Message::Command(command) => self.handle_command(command),
-            Message::ReplicaBroadcast(k, set, phase) => {
-                self.handle_replica_broadcast(k, set, phase)
-            }
-            _ => {}
-        }
-        let process = self.process_commands();
-        let process = timeout(Duration::from_secs(10), process);
-        process.await.unwrap();
-    }
-    async fn handle_instruction(&mut self, instruction: Instruction) {
-        match instruction {
-            Instruction::Testing => {
-                println!("Replica #{} received the test", self.communicator.id())
-            }
-            Instruction::Shutdown => {
-                self.write_logs();
-                self.communicator.shutdown().await;
-            }
-            _ => {}
-        }
-    }
-
-    fn id(&self) -> &PeerId {
-        self.communicator.id()
-    }
-
-    fn network_info(&self) -> &NetworkInfo {
-        self.communicator.network_info()
     }
 }
 

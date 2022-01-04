@@ -62,7 +62,7 @@ where
         remote: Identity,
         message: T,
     ) -> Result<Acknowledgement, Top<SenderError>> {
-        Self::transmit(self.network_info().transmition_delay()).await;
+        Self::transmit(self.network_info().transmission_delay()).await;
         self.sender.send(remote, message).await
     }
 
@@ -72,7 +72,7 @@ where
         message: T,
     ) -> JoinHandle<Result<Acknowledgement, Top<SenderError>>> {
         let sender = self.sender.clone();
-        let delay = self.network_info().transmition_delay();
+        let delay = self.network_info().transmission_delay();
         Self::transmit(delay).await;
         tokio::spawn(async move { sender.send(remote, message).await })
     }

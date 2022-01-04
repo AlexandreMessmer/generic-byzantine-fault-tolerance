@@ -6,20 +6,23 @@ use std::{
 use rand::thread_rng;
 use rand_distr::{Distribution, Poisson};
 
-pub const DEFAULT_SLOWDOWN_FACTOR: f64 = 10.0;
+pub const DEFAULT_CONSENSUS_DURATION: f64 = 10.0;
 pub const DEFAULT_REPORT_FOLDER: &str = "resources";
-#[derive(Clone)]
+pub const MAX_TRANSMISSION_DELAY: u64 = 1000;
+#[derive(Clone, Debug)]
 pub struct NetworkInfo {
     nbr_clients: usize,
     nbr_replicas: usize,
     nbr_faulty_clients: usize,
     nbr_faulty_replicas: usize,
-    transmition_delay: u64,
-    slowdown_factor: f64,
-    transmition_delay_distribution: Poisson<f64>, // In milliseconds
+    transmission_delay: u64,
+    /// in ms
+    consensus_duration: f64, // in s
+    transmission_delay_distribution: Poisson<f64>, // In milliseconds
     n_ack: usize,
     report_folder: String,
     creation: SystemTime,
+    write_logs: bool,
 }
 
 impl NetworkInfo {
@@ -28,27 +31,30 @@ impl NetworkInfo {
         nbr_replicas: usize,
         nbr_faulty_clients: usize,
         nbr_faulty_replicas: usize,
-        transmition_delay: u64,
-        slowdown_factor: f64,
+        transmission_delay: u64,
+        consensus_duration: f64,
         report_folder: String,
         n_ack: usize,
+        write_logs: bool,
     ) -> Self {
         assert!(
             5 * nbr_faulty_replicas < nbr_replicas,
             "Network does not satisfy the resilience condition"
         );
+        assert!(consensus_duration >= 0.0);
         Self {
             nbr_clients,
             nbr_replicas,
             nbr_faulty_clients,
             nbr_faulty_replicas,
-            transmition_delay,
-            slowdown_factor,
-            transmition_delay_distribution: Poisson::new(transmition_delay as f64)
+            transmission_delay,
+            consensus_duration,
+            transmission_delay_distribution: Poisson::new(transmission_delay as f64)
                 .unwrap_or(Poisson::new(1.0).unwrap()),
             n_ack,
             report_folder,
             creation: SystemTime::now(),
+            write_logs,
         }
     }
 
@@ -57,7 +63,7 @@ impl NetworkInfo {
         nbr_replicas: usize,
         nbr_faulty_clients: usize,
         nbr_faulty_replicas: usize,
-        transmition_delay: u64,
+        transmission_delay: u64,
         n_ack: usize,
     ) -> Self {
         Self {
@@ -65,13 +71,14 @@ impl NetworkInfo {
             nbr_replicas,
             nbr_faulty_clients,
             nbr_faulty_replicas,
-            transmition_delay,
-            slowdown_factor: DEFAULT_SLOWDOWN_FACTOR,
-            transmition_delay_distribution: Poisson::new(transmition_delay as f64)
+            transmission_delay,
+            consensus_duration: DEFAULT_CONSENSUS_DURATION,
+            transmission_delay_distribution: Poisson::new(transmission_delay as f64)
                 .unwrap_or(Poisson::new(1.0).unwrap()),
             n_ack,
             report_folder: String::from(DEFAULT_REPORT_FOLDER),
             creation: SystemTime::now(),
+            write_logs: false,
         }
     }
 
@@ -80,14 +87,14 @@ impl NetworkInfo {
         nbr_replicas: usize,
         nbr_faulty_clients: usize,
         nbr_faulty_replicas: usize,
-        transmition_delay: u64,
+        transmission_delay: u64,
     ) -> Self {
         Self::with_default_report_folder(
             nbr_clients,
             nbr_replicas,
             nbr_faulty_clients,
             nbr_faulty_replicas,
-            transmition_delay,
+            transmission_delay,
             nbr_replicas,
         )
     }
@@ -97,19 +104,21 @@ impl NetworkInfo {
         nbr_replicas: usize,
         nbr_faulty_clients: usize,
         nbr_faulty_replicas: usize,
-        transmition_delay: u64,
-        slowdown_factor: f64,
+        transmission_delay: u64,
+        consensus_duration: f64,
         report_folder: String,
     ) -> Self {
+        assert!(nbr_replicas > 0);
         Self::new(
             nbr_clients,
             nbr_replicas,
             nbr_faulty_clients,
             nbr_faulty_replicas,
-            transmition_delay,
-            slowdown_factor,
+            transmission_delay,
+            consensus_duration,
             report_folder,
             nbr_replicas,
+            false,
         )
     }
 
@@ -144,8 +153,15 @@ impl NetworkInfo {
         self.nbr_faulty_replicas()
     }
 
-    pub fn slowdown_factor(&self) -> f64 {
-        self.slowdown_factor
+    pub fn consensus_duration(&self) -> f64 {
+        self.consensus_duration
+    }
+
+    pub fn write_logs(&self) -> bool {
+        self.write_logs
+    }
+    pub fn set_write_logs(&mut self, value: bool) {
+        self.write_logs = value;
     }
 
     pub fn compute_ranges(&self) -> (Range<usize>, Range<usize>, Range<usize>, Range<usize>) {
@@ -166,16 +182,23 @@ impl NetworkInfo {
         )
     }
 
-    pub fn transmition_delay(&self) -> u64 {
-        if self.transmition_delay == 0 {
+    pub fn transmission_delay(&self) -> u64 {
+        self.transmission_delay
+    }
+    pub fn sample_transmission_delay(&self) -> u64 {
+        if self.transmission_delay == 0 {
             return 0;
         }
         let mut rng = thread_rng();
-        self.transmition_delay_distribution.sample(&mut rng) as u64
+        let mut delay = self.transmission_delay_distribution.sample(&mut rng) as u64;
+        while delay > MAX_TRANSMISSION_DELAY {
+            delay = self.transmission_delay_distribution.sample(&mut rng) as u64;
+        }
+        delay
     }
 
-    pub fn consensus_transmition_delay(&self) -> u64 {
-        (self.transmition_delay() as f64 * self.slowdown_factor) as u64
+    pub fn consensus_transmission_delay(&self) -> f64 {
+        self.consensus_duration
     }
     pub fn elapsed(&self) -> Result<Duration, SystemTimeError> {
         self.creation.elapsed()
@@ -207,5 +230,14 @@ mod tests {
         assert!(faulty_replica_range.contains(&12));
         assert!(faulty_replica_range.contains(&13));
         assert!(!faulty_replica_range.contains(&14));
+    }
+
+    #[test]
+    fn poisson() {
+        let distr = Poisson::new(2.0).unwrap();
+        for _ in 0..10 {
+            let delay = distr.sample(&mut thread_rng());
+            println!("{:?}", delay);
+        }
     }
 }

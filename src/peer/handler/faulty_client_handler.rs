@@ -6,7 +6,7 @@ use crate::{
     talk::{Instruction, Message},
 };
 
-use super::{client_handler, ClientHandler, Communicator, Handler};
+use super::{Communicator, Handler};
 
 pub struct FaultyClientHandler {
     communicator: Communicator<Message>,

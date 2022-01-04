@@ -1,10 +1,9 @@
-use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
 
 use crate::database::replica_database::Set;
 
-use super::{Command, CommandId, CommandResult, Phase, RoundNumber};
+use super::{Command, CommandResult, Phase, RoundNumber};
 
 /// Peers exchange Message.
 /// This is defined to work for talk unicast systems.

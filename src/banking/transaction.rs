@@ -89,9 +89,9 @@ mod tests {
 
     #[test]
     fn print_test() {
-        let t = Transaction::from_command(
+        let _ = Transaction::from_command(
             &Command::new(11, Action::Deposit(10)),
-            &CommandResult::Failure(format!("123456789012345678901234567890")),
+            &CommandResult::Failure(format!("13456789A3456789567890")),
         );
     }
 }

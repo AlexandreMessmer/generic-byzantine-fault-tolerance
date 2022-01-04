@@ -1,4 +1,4 @@
-use super::{Command, Message};
+use super::{Command};
 
 pub enum Instruction {
     Execute(Command),

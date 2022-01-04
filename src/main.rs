@@ -27,3 +27,4 @@ async fn some_operation(i: u64, _sender: Sender<()>) {
 
     // sender goes out of scope ...
 }
+

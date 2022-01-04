@@ -80,10 +80,10 @@ impl Coordinator {
 
     /// Returns Some(NCSet, CSet) if it is validated
     fn validate(&mut self, k: RoundNumber) -> Option<(ProposalSet, ProposalSet)> {
-        let is_complete = self
-            .received
-            .get(&k)
-            .map(|id_map| id_map.len() >= self.network_info.n_ack());
+        let is_complete = self.received.get(&k).map(|id_map| {
+            //println!("Coordinator received: {}", id_map.len());
+            id_map.len() >= self.network_info.n_ack()
+        });
 
         if let Some(true) = is_complete {
             return self.received.remove(&k).map(|id_map| {
@@ -142,15 +142,22 @@ impl Coordinator {
         None
     }
 
+    #[cfg(test)]
+    pub fn display_internals(&self) {
+        println!(
+            "Received: {:#?} \n already_received: {:#?} \n validated: {:#?}",
+            self.received, self.already_received, self.validated
+        )
+    }
+
     async fn broadcast(
         &self,
         k: RoundNumber,
         nc_set: BTreeSet<Command>,
         c_set: BTreeSet<Command>,
     ) -> Result<usize, SendError<ProposalData>> {
-        println!("Consensus solved!");
-        tokio::time::sleep(Duration::from_millis(
-            self.network_info.consensus_transmition_delay(),
+        tokio::time::sleep(Duration::from_secs_f64(
+            self.network_info.consensus_transmission_delay(),
         ))
         .await;
         self.broadcaster.send((k, nc_set, c_set))
@@ -174,9 +181,11 @@ impl Coordinator {
 impl Runner for Coordinator {
     async fn run(mut self) {
         while let Some(data) = self.receiver.recv().await {
+            //println!("Coordinator received: {:#?}", data);
             let (_, k, _, _) = data;
             let proposition = self.propose(data);
             if let Some((nc_set, c_set)) = proposition {
+                println!("Coordinator complete \n");
                 self.broadcast(k, nc_set, c_set).await.unwrap();
             }
         }

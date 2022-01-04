@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-use crate::peer::{peer::PeerId, Peer};
+use crate::peer::{peer::PeerId};
 
 use super::CommandResult;
 

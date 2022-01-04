@@ -1,17 +1,13 @@
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::ops::Range;
-use std::slice::SliceIndex;
-use std::sync::Arc;
+use std::collections::{HashMap, VecDeque};
 use std::time::{Duration, SystemTimeError};
 
 use doomstack::Top;
 use futures::future::join_all;
 
-use futures::sink::Feed;
 use talk::time::{timeout, Timeout};
 use talk::{crypto::Identity, sync::fuse::Fuse, unicast::test::UnicastSystem};
 use tokio::sync::mpsc::error::SendError;
-use tokio::sync::{mpsc, Mutex};
+use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
 use super::{NetworkInfo, NetworkPeer};
@@ -19,7 +15,7 @@ use super::{NetworkInfo, NetworkPeer};
 use crate::banking::action::Action;
 use crate::banking::banking::Money;
 use crate::peer::coordinator::Coordinator;
-use crate::talk::{instruction, Command};
+use crate::talk::Command;
 use crate::{
     crypto::identity_table::{IdentityTable, IdentityTableBuilder},
     peer::{handler::HandlerBuilder, peer::PeerId, runner::Runner, Peer},
@@ -35,6 +31,7 @@ pub struct Network {
     network_info: NetworkInfo,
     peers_inlets: Vec<InstructionSender>,
     pending_execution: HashMap<PeerId, VecDeque<Command>>,
+    pending_nbr: usize,
     feedback_outlet: FeedbackReceiver,
     identity_table: IdentityTable,
     _fuse: Fuse,
@@ -89,6 +86,7 @@ impl Network {
             network_info,
             peers_inlets: inlets,
             pending_execution,
+            pending_nbr: 0,
             feedback_outlet,
             identity_table,
             _fuse: fuse,
@@ -154,53 +152,53 @@ impl Network {
         self.peers_inlets.get(id)
     }
 
-    fn inlet(&self, peer_type: NetworkPeer, index: usize) -> Option<&InstructionSender> {
-        let id = Self::get_id(&self, peer_type, index);
-        id.map(|id| self.peer_inlet(id)).flatten()
-    }
-    fn get_id(&self, peer_type: NetworkPeer, index: usize) -> Option<PeerId> {
-        match peer_type {
-            NetworkPeer::Client => {
-                let (client_ids, _) = self.identity_table.client_ids();
-                Self::compute_id(index, client_ids)
-            }
-            NetworkPeer::FaultyClient => {
-                let (_, ids) = self.identity_table.client_ids();
-                Self::compute_id(index, ids)
-            }
-            NetworkPeer::Replica => {
-                let (ids, _) = self.identity_table.replica_ids();
-                Self::compute_id(index, ids)
-            }
-            NetworkPeer::FaultyReplica => {
-                let (_, ids) = self.identity_table.replica_ids();
-                Self::compute_id(index, ids)
-            }
-        }
-    }
+    // fn inlet(&self, peer_type: NetworkPeer, index: usize) -> Option<&InstructionSender> {
+    //     let id = Self::get_id(&self, peer_type, index);
+    //     id.map(|id| self.peer_inlet(id)).flatten()
+    // }
+    // fn get_id(&self, peer_type: NetworkPeer, index: usize) -> Option<PeerId> {
+    //     match peer_type {
+    //         NetworkPeer::Client => {
+    //             let (client_ids, _) = self.identity_table.client_ids();
+    //             Self::compute_id(index, client_ids)
+    //         }
+    //         NetworkPeer::FaultyClient => {
+    //             let (_, ids) = self.identity_table.client_ids();
+    //             Self::compute_id(index, ids)
+    //         }
+    //         NetworkPeer::Replica => {
+    //             let (ids, _) = self.identity_table.replica_ids();
+    //             Self::compute_id(index, ids)
+    //         }
+    //         NetworkPeer::FaultyReplica => {
+    //             let (_, ids) = self.identity_table.replica_ids();
+    //             Self::compute_id(index, ids)
+    //         }
+    //     }
+    // }
 
-    fn compute_id(index: usize, range: &Range<usize>) -> Option<usize> {
-        let id = index + range.start;
-        if range.contains(&id) {
-            return Some(id);
-        }
-        None
-    }
+    // fn compute_id(index: usize, range: &Range<usize>) -> Option<usize> {
+    //     let id = index + range.start;
+    //     if range.contains(&id) {
+    //         return Some(id);
+    //     }
+    //     None
+    // }
 
     /// Sends an instruction to a given Peer, index by type `NetworkPeer`
     /// For example, if the `Network is (Client1, Client2, Replica1, Replica2), an instructon is
     /// given to Replica1 with `NetworkPeer::Replica` and 0 as index.
-    async fn send_instruction_with_type(
-        &self,
-        instruction: Instruction,
-        peer_type: NetworkPeer,
-        index: usize,
-    ) -> Option<JoinHandle<Result<(), SendError<Instruction>>>> {
-        self.inlet(peer_type, index).map(|sender| {
-            let sender = sender.clone();
-            tokio::spawn(async move { sender.send(instruction).await })
-        })
-    }
+    // async fn send_instruction_with_type(
+    //     &self,
+    //     instruction: Instruction,
+    //     peer_type: NetworkPeer,
+    //     index: usize,
+    // ) -> Option<JoinHandle<Result<(), SendError<Instruction>>>> {
+    //     self.inlet(peer_type, index).map(|sender| {
+    //         let sender = sender.clone();
+    //         tokio::spawn(async move { sender.send(instruction).await })
+    //     })
+    // }
 
     async fn send_instruction(
         &self,
@@ -214,17 +212,21 @@ impl Network {
     }
 
     /// Execute the given command and wait for the result
-    fn execute(&mut self, client: PeerId, command: Command) -> bool {
-        self.pending_execution
+    pub fn execute(&mut self, client: PeerId, command: Command) -> bool {
+        let status = self.pending_execution
             .get_mut(&client)
             .map(|pending_commands| {
                 pending_commands.push_back(command);
                 true
             })
-            .unwrap_or(false)
+            .unwrap_or(false);
+        if status {
+            self.pending_nbr += 1;
+        }
+        status
     }
 
-    async fn execute_next(&mut self, client: PeerId) -> bool {
+    pub async fn execute_next(&mut self, client: PeerId) -> bool {
         let command = self
             .pending_execution
             .get_mut(&client)
@@ -240,36 +242,33 @@ impl Network {
         false
     }
 
+    fn display_feedback(feedback: Feedback) {
+        match feedback {
+            Feedback::Error(id, msg) => println!("Client #{} failed: {}", id, msg),
+            Feedback::Acknowledgement(id) => println!("Client #{} request is successful", id),
+            Feedback::Result(id, res) => {
+                println!("Client #{} request: {}", id, res)
+            }
+            Feedback::ShutdownComplete(_) => {}
+        }
+    }
+
     // Assume that no client is faulty
-    async fn execute_all(&mut self) {
+    pub async fn execute_all(&mut self) {
         // Execute one action for every peer
         for i in 0..self.network_info.nbr_clients() {
             self.execute_next(i).await;
         }
 
-        let mut has_next = false;
+        let mut count = 0;
         // Once a client ends, try to execute the next one
-        while let Some(feedback) = self.feedback_outlet.recv().await {
-            let from = feedback.from();
-            match feedback {
-                Feedback::Error(id, msg) => println!("Client #{} failed: {}", id, msg),
-                Feedback::Acknowledgement(id) => println!("Client #{} request is successful", id),
-                Feedback::Result(id, res) => {
-                    println!("Client #{} request is successful ({})", id, res)
-                }
-                Feedback::ShutdownComplete(_) => {}
+        while count < self.pending_nbr {
+            if let Some(feedback) = self.feedback_outlet.recv().await {
+                count += 1;
+                let from = feedback.from();
+                Self::display_feedback(feedback);
+                self.execute_next(from).await;
             }
-            if !has_next {
-                if self
-                    .pending_execution
-                    .clone()
-                    .iter_mut()
-                    .all(|(_, pending)| pending.is_empty())
-                {
-                    break;
-                }
-            }
-            has_next = self.execute_next(from).await;
         }
     }
     //async fn execute_multiple(&mut self, )
@@ -333,15 +332,24 @@ impl Network {
     }
     /// Wait until every peers are shut downed.
     /// Timeout with a default timer.
-    pub async fn wait_until_shutdown(&mut self) {
-        let mut i = 0;
+    async fn wait_until_shutdown(&mut self) {
+        let mut nbr = 0;
+        let mut array: Vec<bool> = Vec::new();
+        for _ in 0..self.network_info.size() {
+            array.push(false);
+        }
         while let Ok(Some(feedback)) =
             timeout(SHUTDOWN_TIMEOUT.clone(), self.receive_feedback()).await
         {
-            if let Feedback::ShutdownComplete(_) = feedback {
-                i += 1;
+            if let Feedback::ShutdownComplete(i) = feedback {
+                array.get_mut(i).map(|v| {
+                    if !*v {
+                        nbr += 1;
+                    }
+                    *v = true
+                });
             }
-            if i >= self.network_info().size() {
+            if nbr >= self.network_info.size() {
                 break;
             }
         }
@@ -362,8 +370,6 @@ mod tests {
 
     use std::time::Duration;
 
-    use crate::network::network_info;
-
     use super::*;
 
     #[tokio::test]
@@ -380,52 +386,55 @@ mod tests {
         //network.shutdown().await;
     }
 
-    #[tokio::test]
-    async fn sending_instruction_with_type_reaches_every_peers() {
-        let network_info = NetworkInfo::with_default_report_folder(2, 2, 2, 2, 10, 0);
-        let mut network = Network::setup(network_info).await;
-        let types: [NetworkPeer; 4] = [
-            NetworkPeer::Client,
-            NetworkPeer::FaultyClient,
-            NetworkPeer::Replica,
-            NetworkPeer::FaultyReplica,
-        ];
-        for i in 0..2 {
-            for t in types {
-                let future = network.send_instruction_with_type(Instruction::Testing, t, i);
-                timeout(SHUTDOWN_TIMEOUT, future).await.unwrap();
-            }
-        }
+    // #[tokio::test]
+    // async fn sending_instruction_with_type_reaches_every_peers() {
+    //     let network_info = NetworkInfo::with_default_report_folder(2, 2, 2, 2, 10, 0);
+    //     let mut network = Network::setup(network_info).await;
+    //     let types: [NetworkPeer; 4] = [
+    //         NetworkPeer::Client,
+    //         NetworkPeer::FaultyClient,
+    //         NetworkPeer::Replica,
+    //         NetworkPeer::FaultyReplica,
+    //     ];
+    //     for i in 0..2 {
+    //         for t in types {
+    //             let future = network.send_instruction_with_type(Instruction::Testing, t, i);
+    //             timeout(SHUTDOWN_TIMEOUT, future).await.unwrap();
+    //         }
+    //     }
 
-        while let Ok(Some(feedback)) =
-            timeout(Duration::from_secs(1), network.receive_feedback()).await
-        {
-            if let Feedback::Acknowledgement(_) = feedback {
-            } else {
-                panic!()
-            }
-        }
-    }
+    //     while let Ok(Some(feedback)) =
+    //         timeout(Duration::from_secs(1), network.receive_feedback()).await
+    //     {
+    //         if let Feedback::Acknowledgement(_) = feedback {
+    //         } else {
+    //             panic!()
+    //         }
+    //     }
+    // }
 
-    #[tokio::test]
-    async fn end_to_end_test() {
-        let network_info = NetworkInfo::default(3, 11, 3, 0, 20);
+    async fn end_to_end_test1() -> Duration {
+        let network_info =
+            NetworkInfo::default_parameters(3, 11, 0, 2, 100, 0.1, String::from("resources/test1"));
         let mut network = Network::setup(network_info).await;
 
         network.register_all();
         for i in 0..3 {
             for _ in 0..10 {
                 network.deposit(i, 1);
+                network.deposit(i, 0);
             }
         }
         network.execute_all().await;
-        network.shutdown().await;
+        network
+            .shutdown()
+            .await
+            .expect("Failed to deliver the time elapsed")
     }
 
-    #[tokio::test]
-    async fn end_to_end_test2() {
+    async fn end_to_end_test2() -> Duration {
         let network_info =
-            NetworkInfo::default_parameters(3, 11, 3, 0, 20, 1.0, String::from("resources/test1"));
+            NetworkInfo::default_parameters(3, 11, 0, 2, 100, 0.1, String::from("resources/test2"));
         let mut network = Network::setup(network_info).await;
         network.register_all();
         for i in 0..3 {
@@ -436,6 +445,21 @@ mod tests {
         }
 
         network.execute_all().await;
-        network.shutdown().await;
+        network
+            .shutdown()
+            .await
+            .expect("Failed to deliver the time elapsed")
+    }
+
+    #[tokio::test]
+    async fn end_to_end_test() {
+        let t1 = end_to_end_test1().await;
+        let t2 = end_to_end_test2().await;
+        println!("Without conflict : {:#?}, with conflict : {:#?}", t1, t2);
+    }
+
+    #[tokio::test]
+    async fn i() {
+        end_to_end_test2().await;
     }
 }
