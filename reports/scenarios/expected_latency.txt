@@ -1,0 +1,34 @@
++---------------------------------------------------+ 
+EXPECTED LATENCY WITH TRANSMISSION DELAY 300ms AND CONSENSUS DURATION 5s, P = 0 
++---------------------------------------------------+ 
+SCENARIO: EXPECTED LATENCY WITH P_CONFLICT = 0 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 5) 
+		 - transmission delay: 300ms 
+		 - consensus duration: 5s 
+		 - probability of conflict: 0 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 213.4562818s 
++---------------------------------------------------+ 
+RESULTS:  
+	 DURATION FOR 100 COMMANDS : 213.4562818s 
+	 EXPECTED LATENCY: 2.134562818 s/cmd 
++---------------------------------------------------+ 
++---------------------------------------------------+ 
+EXPECTED LATENCY WITH TRANSMISSION DELAY 300ms AND CONSENSUS DURATION 5s, P = 0.25 
++---------------------------------------------------+ 
+SCENARIO: EXPECTED LATENCY WITH P_CONFLICT = 0.25 
+ 	 > PARAMS: 
+		 - precision: (number of generated commands: 100, repetitions: 5) 
+		 - transmission delay: 300ms 
+		 - consensus duration: 5s 
+		 - probability of conflict: 0.25 
+		 - clients: 2 
+		 - replica: 7 (with faulty: 1) 
+	 > COMPLETE IN: 362.6015802s 
++---------------------------------------------------+ 
+RESULTS:  
+	 DURATION FOR 100 COMMANDS : 362.6015802s 
+	 EXPECTED LATENCY: 3.626015802 s/cmd
++---------------------------------------------------+ 
