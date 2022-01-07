@@ -15,6 +15,8 @@ pub const REPLICAS: usize = 6;
 pub const FAULTY: usize = 1;
 pub const DEFAULT_PRECISION: usize = 1;
 pub const DEFAULT_REPORT_FOLDER: &str = "reports/scenarios/logs";
+pub const DEFAULT_TRANSMISSION_DELAY_MS: u64 = 300;
+pub const DEFAULT_CONSENSUS_DURATION_S: f64 = 5.0;
 /// Defines some testing scenarios
 impl Scenarios {
     pub fn new(path: &str) -> Self {
@@ -211,22 +213,22 @@ impl Scenarios {
         self.write(String::from("+---------------------------------------------------+"));
     }
 
-    fn consensus_duration(transmission_delay_ms: u64, slowdown_factor: u64) -> f64 {
-        let consensus_duration_ms = transmission_delay_ms * slowdown_factor;
-        consensus_duration_ms as f64 / 1000.0
+    fn consensus_duration(transmission_delay_ms: u64, slowdown_factor: f64) -> f64 {
+        let consensus_duration_ms = transmission_delay_ms as f64 * slowdown_factor;
+        consensus_duration_ms / 1000.0
     }
     /// Scenario: We seek for the relationship S between the transmission delay T and the consensus latency C such that the algorithm is worth it
     /// In other word, we seek for the S such that C = S*T and for a given probability of conflict P, the time taken with and without conflict is the same.
     /// We simulate it for P = 0.01, 0.05, 0.1, 0.2 and for P = 0.00 (no conflict)
-    pub async fn slowdown_factor(&mut self, low: u64, high: u64, step: u64, transmission_delay: u64){
-        let mut factor = low;
+    pub async fn slowdown_factor(&mut self, low: f64, high: f64, step: f64, transmission_delay: u64){
+        let mut factor = low as f64;
         let probabilities: [u64; 5] = [0, 1, 5, 10, 20]; // In %
         self.write_sep();
         self.write(format!("START FUNCTION: f(slowdown_factor) on [{}, {}]s with a step of {}ms ",
             low, high, step
         ));
         self.write_sep();
-        let mut scenarios: HashMap<u64, Vec<(u64, Duration)>> = HashMap::new();
+        let mut scenarios: HashMap<u64, Vec<(f64, Duration)>> = HashMap::new();
         for p in probabilities {
             scenarios.insert(p, Vec::new());
         }
@@ -246,7 +248,7 @@ impl Scenarios {
                     FAULTY,
                 )
                 .await;
-            scenarios.get_mut(&p).unwrap().push((transmission_delay, scenario));
+            scenarios.get_mut(&p).unwrap().push((factor, scenario));
             }
             factor *= step;
         }
@@ -258,6 +260,32 @@ impl Scenarios {
             }
             self.write(String::from(""));
         }
+        self.write(String::from("+---------------------------------------------------+"));
+    }
+
+    pub async fn expected_latency(&mut self, p: f64) {
+        self.write_sep();
+        self.write(format!("EXPECTED LATENCY WITH TRANSMISSION DELAY {}ms AND CONSENSUS DURATION {}s, P = {}",
+            DEFAULT_TRANSMISSION_DELAY_MS, DEFAULT_CONSENSUS_DURATION_S, p
+        ));
+        self.write_sep();
+        let scenario = self
+            .parametrizable_scenario(
+                format!("EXPECTED LATENCY WITH P_CONFLICT = {}", p),
+                format!("{}", DEFAULT_REPORT_FOLDER),
+                5,
+                DEFAULT_TRANSMISSION_DELAY_MS,
+                DEFAULT_CONSENSUS_DURATION_S,
+                p,
+                CLIENTS,
+                REPLICAS,
+                FAULTY,
+            )
+            .await;
+        self.write(String::from("+---------------------------------------------------+"));
+        self.write(format!("RESULTS: "));
+        self.write(format!("\t DURATION FOR 100 COMMANDS : {:#?}", scenario));
+        self.write(format!("\t EXPECTED LATENCY: {} cmds/s", scenario.as_secs_f64() / 100.0));
         self.write(String::from("+---------------------------------------------------+"));
     }
 }
@@ -344,5 +372,21 @@ mod tests {
     async fn test_td() {
         let mut scenarios = Scenarios::new("reports/scenarios/transmission_delay");
         scenarios.with_inscreasing_transmission_delay(10, 50, 10, 1.0, 0.1).await;
+    }
+
+    #[tokio::test]
+    async fn expected_latency() {
+        let mut scenarios = Scenarios::new("reports/scenarios/expected_latency2.txt");
+        scenarios.expected_latency(0.01).await;
+        scenarios.expected_latency(0.05).await;
+        scenarios.expected_latency(0.10).await;
+        scenarios.expected_latency(0.20).await;
+        scenarios.expected_latency(0.50).await;
+    }
+    
+    #[tokio::test]
+    async fn expected_latency3() {
+        let mut scenarios = Scenarios::new("reports/scenarios/expected_latency3.txt");
+        scenarios.expected_latency(0.1).await;
     }
 }

@@ -49,7 +49,7 @@ where
         let id = self.id().clone();
         let network_info = self.network_info().clone();
         println!(
-            "[{:#?}] Peer #{}: running",
+            "[{:#?}] Peer #{}(): running",
             network_info.elapsed().unwrap(),
             id
         );

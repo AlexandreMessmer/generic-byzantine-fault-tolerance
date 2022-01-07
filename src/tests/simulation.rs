@@ -3,6 +3,8 @@ use std::{
 };
 
 
+use tokio::time::sleep;
+
 use crate::{
     banking::{action::Action, banking::Money},
     network::{network::Network, NetworkInfo},
@@ -67,6 +69,8 @@ impl Simulation {
             self.network.get_balance(i);
             self.network.execute_next(i).await;
         }
+
+        sleep(Duration::from_secs_f64(self.network.network_info().consensus_duration() * 3.0)).await;
     }
 
     pub fn register(&mut self, id: PeerId) {
@@ -152,5 +156,11 @@ mod tests {
         let with_overhead = with_overhead.simulate().await.as_secs_f64();
 
         println!("Diff = {}s", with_overhead - without_overhead);
+    }
+
+    #[tokio::test]
+    async fn test12() {
+        let simulation = Simulation::new(String::from("TEST"), String::from(DEFAULT_REPORT_FOLDER), CLIENTS, REPLICAS, FAULTY, 10, 0.1).await;
+
     }
 }
